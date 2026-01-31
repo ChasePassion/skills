@@ -1,10 +1,11 @@
----
+﻿---
 name: best-java-structure
-description: Java Layered Architecture Design Pattern — A complete implementation guide for the classic five-layer architecture. Suitable for bootstrapping new Java projects, refactoring existing architectures, establishing team development standards, and database migration scenarios. Covers design principles, code examples, and best practices for the Presentation Layer, Business Logic Layer, Data Access Layer, Persistence Layer, and Database Layer.
+description: Java Layered Architecture Design Pattern — A complete implementation guide for the classic five-layer architecture using Spring Boot + MyBatis-Plus. Suitable for bootstrapping new Java projects, refactoring existing architectures, establishing team development standards, and database migration scenarios.
 ---
 
-# Java Layered Architecture Design Pattern
-A complete guide to implementing a layered Java architecture, covering the design principles, code examples, and best practices for the Presentation Layer, Business Logic Layer, Data Access Layer, and Persistence Layer.
+# Java Layered Architecture Design Pattern (Spring Boot + MyBatis-Plus)
+A practical guide to implementing a classic five-layer architecture with Spring Boot and MyBatis-Plus.
+
 ## When to Apply
 Use this skill in the following scenarios:
 - Creating a new Java Web project
@@ -13,6 +14,12 @@ Use this skill in the following scenarios:
 - Checking architectural compliance during code reviews
 - Defining architectural standards for team development
 - Database migration or technology stack migration
+
+## Assumptions
+- Spring Boot 3.x
+- MyBatis-Plus for data access
+- DTO/VO separation at API boundaries
+
 ## Quick Reference
 | Priority | Category | Impact Area | Prefix |
 |---------:|----------|------------|--------|
@@ -22,63 +29,82 @@ Use this skill in the following scenarios:
 | 4 | Data Transfer | API consistency | -data- |
 | 5 | Exception Handling | Error handling | -exception- |
 | 6 | Cross-Layer Invocation | Architectural compliance | -crosslayer- |
-| 7 | Reverse Dependency | Architectural compliance | -crosslayer- |
-| 8 | Direct Entity Return | Security | -entity- |
+| 7 | Reverse Dependency | Architectural compliance | -reverse- |
+| 8 | Entity Exposure | Security | -entity-exposure- |
+
 ## Core Principles
 ### 1. Separation of Concerns (SoC)
 Each layer should solve one category of problems and must not take on responsibilities belonging to other layers.
 ```java
-// ✅ Correct: Clear responsibilities per layer
+// Correct: clear responsibilities per layer
 // Presentation layer: HTTP handling only
 @RestController
 public class ProjectController {
+    private final ProjectService projectService;
+    public ProjectController(ProjectService projectService) {
+        this.projectService = projectService;
+    }
     @GetMapping("/{id}")
-    public ApiReturn<Project> getProject(@PathVariable Long id) {
-        return ApiReturn.of(projectService.getProject(id));
+    public ApiReturn<ProjectVo> getProject(@PathVariable Long id) {
+        Project project = projectService.getProject(id);
+        ProjectVo vo = new ProjectVo();
+        BeanUtils.copyProperties(project, vo);
+        return ApiReturn.of(vo);
     }
 }
-// Business logic layer: Business rules only
+// Business logic layer: business rules only
 @Service
 public class ProjectService {
+    private final ProjectMapper projectMapper;
+    public ProjectService(ProjectMapper projectMapper) {
+        this.projectMapper = projectMapper;
+    }
     public Project getProject(Long id) {
-        Project project = projectMapper.getById(id);
+        Project project = projectMapper.selectById(id);
         if (project == null) {
-            throw new BusinessException("Project does not exist");
+            throw new BusinessException(404, "Project does not exist");
         }
         return project;
     }
 }
-// Data access layer: Data interfaces only
-public interface ProjectMapper {
-    Project getById(Long id);
+// Data access layer: data interfaces only
+public interface ProjectMapper extends BaseMapper<Project> {
 }
 ```
+
 ### 2. Unidirectional Dependency
 Upper layers may call lower layers, but lower layers must not depend on upper layers.
 ```java
-// ✅ Correct: Depend on the adjacent lower layer via abstraction
+// Correct: depend on a lower layer abstraction
 @Service
 public class ProjectService {
-    private ProjectMapper projectMapper;  // depends on an interface
+    private final ProjectMapper projectMapper;
+    public ProjectService(ProjectMapper projectMapper) {
+        this.projectMapper = projectMapper;
+    }
 }
-// ❌ Incorrect: Cross-layer or reverse dependency
+// Incorrect: cross-layer invocation
 @RestController
 public class ProjectController {
-    private ProjectMapper projectMapper;  // cross-layer invocation
+    private final ProjectMapper projectMapper;
+    public ProjectController(ProjectMapper projectMapper) {
+        this.projectMapper = projectMapper;
+    }
 }
 ```
+
 ### 3. Interface Abstraction
-Layers should interact via interfaces, not directly depend on concrete implementations.
+Layers should interact via interfaces, not concrete implementations.
 ```java
-// ✅ Correct: Interface dependency
-public class ProjectService {
-    private ProjectMapper projectMapper;  // interface type
+// Correct: mapper interface managed by MyBatis-Plus
+public interface ProjectMapper extends BaseMapper<Project> {
 }
-// ❌ Incorrect: Concrete class dependency
+// Incorrect: depending on a non-existent implementation class
 public class ProjectService {
-    private ProjectMapperImpl projectMapperImpl;  // concrete class
+    private ProjectMapperImpl projectMapperImpl;
 }
 ```
+
 ## Architecture Layers
 ### Classic Five-Layer Architecture
 ```
@@ -87,310 +113,191 @@ Presentation Layer → Business Logic Layer → Data Access Layer → Persistenc
 | Layer                    | Spring Stack         | Common Names            | Core Responsibilities                  |
 | ------------------------ | -------------------- | ----------------------- | -------------------------------------- |
 | **Presentation Layer**   | @Controller          | Controller, API         | Handle HTTP requests and responses     |
-| **Business Logic Layer** | @Service             | Service, Manager        | Implement business rules and workflows |
-| **Data Access Layer**    | @Mapper, @Repository | Mapper, Repository, DAO | Define data access interfaces          |
-| **Persistence Layer**    | MyBatis XML, JPA     | Mapper XML, Entity      | Execute SQL and map results            |
-| **Database Layer**       | MySQL, PostgreSQL    | Database                | Store and retrieve data                |
+| **Business Logic Layer** | @Service             | Service                 | Implement business rules and workflows |
+| **Data Access Layer**    | @Mapper              | Mapper, DAO             | Define DB access interfaces            |
+| **Persistence Layer**    | MyBatis XML, Entity  | Mapper XML, Entity      | SQL mapping and entity definitions     |
+| **Database Layer**       | MySQL                | Database                | Store and retrieve data                |
+
 ## Layer Definitions
 ### Presentation Layer
 **Responsibilities**:
 * Handle HTTP requests and responses
 * Receive and validate parameters
 * Routing and dispatching
-* Data format transformation (DTO ↔ Entity)
+* Data format transformation (DTO ↔ Entity ↔ VO)
 * Exception handling and HTTP status mapping
 **Template**:
 ```java
 @RestController
 @RequestMapping("/api/projects")
 public class ProjectController {
-    @Resource
-    private ProjectService projectService;
+    private final ProjectService projectService;
+    public ProjectController(ProjectService projectService) {
+        this.projectService = projectService;
+    }
     @GetMapping("/{id}")
-    public ApiReturn<ProjectVO> getProject(@PathVariable Long id) {
-        // Parameter validation
-        if (id == null || id <= 0) {
-            return ApiReturn.error(400, "Invalid project ID");
-        }
-        // Call business logic layer
+    public ApiReturn<ProjectVo> getProject(@PathVariable Long id) {
         Project project = projectService.getProject(id);
-        // Entity -> VO
-        ProjectVO vo = BeanUtils.copyProperties(project, ProjectVO.class);
+        ProjectVo vo = new ProjectVo();
+        BeanUtils.copyProperties(project, vo);
         return ApiReturn.of(vo);
     }
     @PostMapping
-    public ApiReturn<ProjectVO> createProject(@RequestBody ProjectDTO dto) {
-        // DTO -> Entity
-        Project project = BeanUtils.copyProperties(dto, Project.class);
-        // Call business logic layer
+    public ApiReturn<ProjectVo> createProject(@Valid @RequestBody ProjectCreateRequest request) {
+        Project project = new Project();
+        BeanUtils.copyProperties(request, project);
         Project created = projectService.createProject(project);
-        // Entity -> VO
-        ProjectVO vo = BeanUtils.copyProperties(created, ProjectVO.class);
+        ProjectVo vo = new ProjectVo();
+        BeanUtils.copyProperties(created, vo);
         return ApiReturn.of(vo);
     }
 }
 ```
 **Design notes**:
-* ✅ Keep it thin: HTTP-related logic only
-* ✅ Use DTO/VO for data transfer
-* ✅ Centralized exception handling
-* ❌ No business logic
-* ❌ No direct database access
+* Keep it thin: HTTP-related logic only
+* Use DTO/VO for data transfer
+* Centralize validation with Bean Validation and global exception handling
+* No business logic
+* No direct database access
+
 ### Business Logic Layer
 **Responsibilities**:
 * Implement business rules and workflows
 * Data validation and business checks
 * Authorization and access control
-* Transaction management
-* Data composition and transformation
-* Coordinate multiple services
+* Transaction management (boundary here)
+* Coordinate multiple services and mappers
 * Call the data access layer
 **Template**:
 ```java
 @Service
-@Transactional
 public class ProjectService {
-    @Resource
-    private ProjectMapper projectMapper;
+    private final ProjectMapper projectMapper;
+    public ProjectService(ProjectMapper projectMapper) {
+        this.projectMapper = projectMapper;
+    }
     public Project getProject(Long id) {
-        // Business validation
         if (id == null || id <= 0) {
-            throw new BusinessException("Invalid project ID");
+            throw new BusinessException(400, "Invalid project ID");
         }
-        // Query data
-        Project project = projectMapper.getById(id);
-        // Business validation
+        Project project = projectMapper.selectById(id);
         if (project == null) {
-            throw new BusinessException("Project does not exist");
-        }
-        // Permission check
-        User currentUser = userService.getCurrentUser();
-        if (!hasPermission(currentUser, project)) {
-            throw new ForbiddenException("Access denied");
+            throw new BusinessException(404, "Project does not exist");
         }
         return project;
     }
+    @Transactional
     public Project createProject(Project project) {
-        // Business validation
         if (project.getCustomerId() == null) {
-            throw new BusinessException("Customer ID must not be null");
+            throw new BusinessException(400, "Customer ID must not be null");
         }
-        // Business processing
         project.setCreatedTime(LocalDateTime.now());
-        project.setCreatedBy(userService.getCurrentUserId());
         project.setStatus(ProjectStatus.CREATED);
-        project.setIsDeleted(false);
-        // Persist
-        return projectMapper.insert(project);
+        projectMapper.insert(project);
+        return project;
     }
 }
 ```
 **Design notes**:
-* ✅ Contains core business logic
-* ✅ Use `@Transactional` for transactions
-* ✅ Perform business validations
-* ✅ Orchestrate multiple services and mappers
-* ❌ No HTTP concerns
-* ❌ No direct DB connection operations
-* ❌ Do not return DTOs (return Entity or VO)
-### Data Access Layer
+* Contains core business logic
+* Use `@Transactional` for transactions
+* Perform business validations
+* Orchestrate multiple services and mappers
+* No HTTP concerns
+* No direct DB connection handling
+* Service should not return DTO (DTO is an input model). Return Entity/Domain or VO consistently.
+
+### Data Access Layer (MyBatis-Plus)
 **Responsibilities**:
-* Define data access interfaces
+* Define DB access interfaces
 * Provide CRUD abstractions
-* Abstract data sources (DB, cache, API, etc.)
 * Encapsulate persistence details
-* Provide aggregate query interfaces
-* Do not care about concrete SQL implementations
-**Template (MyBatis)**:
+* Provide aggregate query interfaces when needed
+**Template**:
 ```java
-public interface ProjectMapper {
-    /**
-     * Get a project by ID
-     */
-    Project getById(Long id);
-    /**
-     * Query all projects
-     */
-    List<Project> getAll();
-    /**
-     * Insert a project
-     */
-    int insert(Project project);
-    /**
-     * Update a project
-     */
-    int update(Project project);
-    /**
-     * Soft delete a project
-     */
-    int softDelete(Long id);
-    /**
-     * Count projects
-     */
-    long count();
-}
-/**
- * Aggregate query interface (avoid N+1 issues)
- */
-public interface ProjectInfoMapper {
-    /**
-     * Get full project information (including customer, versions, users, etc.)
-     */
-    ProjectInfoVO getProjectInfo(Long projectId);
-}
-```
-**Template (JPA)**:
-```java
-/**
- * Project repository interface
- */
-public interface ProjectRepository extends JpaRepository<Project, Long> {
-    /**
-     * Find projects by customer ID
-     */
-    List<Project> findByCustomerId(Long customerId);
-    /**
-     * Find projects by status
-     */
-    List<Project> findByStatus(ProjectStatus status);
-    /**
-     * Paginated query
-     */
-    Page<Project> findByIsDeletedFalse(Pageable pageable);
+public interface ProjectMapper extends BaseMapper<Project> {
 }
 ```
 **Design notes**:
-* ✅ Define interfaces only; no concrete implementations
-* ✅ Method names clearly express intent
-* ✅ Provide aggregate queries to avoid N+1
-* ❌ No SQL statements here
-* ❌ No business logic
-* ❌ No transaction management
-* ❌ Must not depend on the Service layer
+* Interfaces only; no concrete implementations
+* Method names clearly express intent
+* No SQL statements here (use XML for complex SQL)
+* No business logic
+* No transaction management
+* Must not depend on the Service layer
+
 ### Persistence Layer
 **Responsibilities**:
-* Execute SQL statements
-* Manage database connections
-* Result mapping (ORM)
-* Transaction boundary enforcement
-* Handle database-specific syntax
-* Performance tuning (indexes, caching, etc.)
-**Template (MyBatis XML)**:
+* SQL mapping and result mapping
+* Entity definitions
+* Database-specific SQL fragments (when needed)
+**Template (MyBatis-Plus XML)**:
 ```xml
 <mapper namespace="com.example.mapper.ProjectMapper">
-    <!-- Result mapping -->
-    <resultMap id="BaseResultMap" type="com.example.entity.Project">
-        <id column="id" property="id" jdbcType="BIGINT"/>
-        <result column="created_time" property="createdTime" jdbcType="TIMESTAMP"/>
-        <result column="customer_id" property="customerId" jdbcType="BIGINT"/>
-        <result column="status" property="status" jdbcType="VARCHAR"/>
-    </resultMap>
-    <!-- SQL fragments -->
-    <sql id="Base_Column_List">
-        id, created_time, updated_time, customer_id, customer_company,
-        product_version, status
-    </sql>
-    <!-- Select one -->
-    <select id="getById" parameterType="java.lang.Long" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/>
-        FROM project
-        WHERE id = #{id}
+    <select id="selectActive" resultType="com.example.entity.Project">
+        SELECT * FROM project WHERE status = 'CREATED'
     </select>
-    <!-- Insert -->
-    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO project (customer_company, status)
-        VALUES (#{customerCompany}, #{status})
-    </insert>
-    <!-- Update -->
-    <update id="update" parameterType="com.example.entity.Project">
-        UPDATE project
-        <set>
-            <if test="customerCompany != null">customer_company = #{customerCompany},</if>
-            <if test="status != null">status = #{status},</if>
-            updated_time = NOW()
-        </set>
-        WHERE id = #{id}
-    </update>
 </mapper>
 ```
 **Design notes**:
-* ✅ Focus on SQL authoring and optimization
-* ✅ Handle database-specific syntax
-* ✅ Result mapping and type conversion
-* ✅ Use SQL fragments for reusability
-* ✅ Use dynamic SQL for complex queries
-* ❌ No business logic
-* ❌ No business validations
-* ❌ Do not return DTOs (return Entity)
+* Focus on SQL authoring and optimization
+* Result mapping and type conversion
+* Use SQL fragments for reusability
+* No business logic
+* No business validations
+* Connection management and transaction boundaries are handled by Spring and DataSource
+
 ### Database Layer
 **Responsibilities**:
 * Persistent storage
 * Data integrity constraints
 * Indexes and performance optimization
 * Transaction support
-* Backup and recovery
 **Template (MySQL)**:
 ```sql
--- Project table
 CREATE TABLE project (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT 'Primary key',
-    created_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created time',
-    updated_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Updated time',
-    customer_id BIGINT NOT NULL COMMENT 'Customer ID',
-    customer_company VARCHAR(200) NOT NULL COMMENT 'Customer company',
-    status VARCHAR(50) DEFAULT 'CREATED' COMMENT 'Project status',
-    is_deleted TINYINT DEFAULT 0 COMMENT 'Deletion flag',
-    INDEX idx_customer_id (customer_id),
-    INDEX idx_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Project table';
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    created_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    customer_id BIGINT NOT NULL,
+    status VARCHAR(50) DEFAULT 'CREATED'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
+
 ## Data Transfer Patterns
 ### Using DTO, VO, and Entity
 ```
 Frontend → Controller → Service → Mapper → Database
-           ↑ DTO       ↑ Entity   ↑ Entity
-           ↑ VO        ↑ Entity   ↑
+           DTO        Entity    Entity
+           VO         Entity
 ```
 ### Conversion Example
 ```java
-// Controller receives DTO
 @PostMapping("/projects")
-public ApiReturn<ProjectVO> createProject(@RequestBody ProjectDTO dto) {
-    // DTO -> Entity
-    Project project = BeanUtils.copyProperties(dto, Project.class);
-    // Call Service (Entity in)
+public ApiReturn<ProjectVo> createProject(@Valid @RequestBody ProjectCreateRequest request) {
+    Project project = new Project();
+    BeanUtils.copyProperties(request, project);
     Project created = projectService.createProject(project);
-    // Entity -> VO
-    ProjectVO vo = BeanUtils.copyProperties(created, ProjectVO.class);
-    // Return VO
+    ProjectVo vo = new ProjectVo();
+    BeanUtils.copyProperties(created, vo);
     return ApiReturn.of(vo);
 }
 ```
+
 ## Exception Handling
 ### Centralized Exception Handling
 ```java
-// 1. Custom business exception
 public class BusinessException extends RuntimeException {
-    private int code;
-    private String message;
+    private final int code;
     public BusinessException(int code, String message) {
         super(message);
         this.code = code;
-        this.message = message;
+    }
+    public int getCode() {
+        return code;
     }
 }
-// 2. Service throws business exception
-@Service
-public class ProjectService {
-    public Project getProject(Long id) {
-        Project project = projectMapper.getById(id);
-        if (project == null) {
-            throw new BusinessException(404, "Project does not exist");
-        }
-        return project;
-    }
-}
-// 3. Global exception handler in Controller layer
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
@@ -399,107 +306,111 @@ public class GlobalExceptionHandler {
     }
     @ExceptionHandler(Exception.class)
     public ApiReturn<Void> handleException(Exception e) {
-        log.error("System error", e);
         return ApiReturn.error(500, "Internal server error");
     }
 }
 ```
+
+## Transaction Guidelines
+- Transaction boundaries belong to Service methods.
+- Use `@Transactional(readOnly = true)` for read-only queries.
+- Rollback on RuntimeException by default; document checked-exception rollbacks if needed.
+- Avoid transactions in Controller, Mapper, or XML.
+
 ## Common Pitfalls
 ### Pitfall 1: Cross-Layer Calls
 ```java
-// ❌ Incorrect: Controller directly calls Mapper
+// Incorrect: Controller directly calls Mapper
 @RestController
 public class ProjectController {
-    @Resource
-    private ProjectMapper projectMapper;  // direct dependency on Mapper
+    private final ProjectMapper projectMapper;
+    public ProjectController(ProjectMapper projectMapper) {
+        this.projectMapper = projectMapper;
+    }
     public List<Project> getProjects() {
-        return projectMapper.getAll();  // cross-layer invocation, bypasses Service
+        return projectMapper.selectList(null);
     }
 }
-// Issues:
-// 1. Bypasses the business logic layer
-// 2. No business validation
-// 3. No authorization checks
-// 4. Violates layering principles
 ```
 ### Pitfall 2: Reverse Dependency
 ```java
-// ❌ Incorrect: Service depends on Controller
+// Incorrect: Service depends on Controller
 @Service
 public class ProjectService {
-    @Resource
-    private ProjectController projectController;  // reverse dependency
-    public Project getProject(Long id) {
-        // ...
-    }
+    private ProjectController projectController;
 }
-// Issues:
-// 1. Violates unidirectional dependency
-// 2. Creates circular dependencies
-// 3. Reduces testability and maintainability
 ```
-### Pitfall 3: Business Logic Leaking into Lower Layers
+### Pitfall 3: Business Logic in SQL
 ```xml
-<!-- ❌ Incorrect: Business logic embedded in SQL -->
+<!-- Incorrect: business logic embedded in SQL -->
 <select id="getById" resultMap="BaseResultMap">
     SELECT * FROM project
     WHERE id = #{id}
       AND is_deleted = 0
-      <!-- Business logic: permission checks -->
-      AND (
-        created_by = #{currentUserId}
-        OR has_permission(#{currentUserId}, id)
-      )
+      AND has_permission(#{currentUserId}, id) = 1
 </select>
-<!-- Issues:
-     1. Business rules become scattered
-     2. Harder to maintain
-     3. SQL is less reusable
-     4. Authorization logic should live in the Service layer
--->
 ```
-### Pitfall 4: Returning Entity Directly
+### Pitfall 4: Returning Entity Directly from Controller
 ```java
-// ❌ Incorrect: Controller returns Entity directly
+// Incorrect: Controller returns Entity directly
 @GetMapping("/projects/{id}")
 public Project getProject(@PathVariable Long id) {
-    return projectService.getProject(id);  // returns Entity
+    return projectService.getProject(id);
 }
-// Issues:
-// 1. Exposes database schema
-// 2. Security risk (sensitive fields leakage)
-// 3. Hard to control response fields
-// 4. Difficult API versioning
 ```
+
+## Project Structure Template (Recommended)
+```
+src/main/java/com/xdyai/backend/
+  controller/
+    internal/
+    request/
+  service/
+    common/
+    context/
+    integration/
+  mapper/
+  entity/
+    enumeration/
+
+src/main/resources/
+  application.yml
+  application-dev.yml
+  mapper/
+  db/
+  validation/
+  integration/
+```
+
 ## Best Practices Summary
 ### Presentation Layer
-* ✅ Keep it thin: HTTP logic only
-* ✅ Use DTO/VO for data transfer
-* ✅ Centralized exception handling
-* ❌ No business logic
-* ❌ No direct Mapper access
+* Keep it thin: HTTP logic only
+* Use DTO/VO for data transfer
+* Centralized exception handling
+* No business logic
+* No direct Mapper access
 ### Business Logic Layer
-* ✅ Contains core business logic
-* ✅ Use `@Transactional` to manage transactions
-* ✅ Orchestrate multiple services
-* ❌ No HTTP concerns
-* ❌ No direct database connection handling
+* Contains core business logic
+* Use `@Transactional` to manage transactions
+* Orchestrate multiple services
+* No HTTP concerns
+* No direct database connection handling
 ### Data Access Layer
-* ✅ Interfaces only
-* ✅ Clear method naming
-* ✅ Provide aggregate queries
-* ❌ No SQL statements
-* ❌ No business logic
+* Interfaces only
+* Clear method naming
+* CRUD via MyBatis-Plus
+* No SQL statements here
+* No business logic
 ### Persistence Layer
-* ✅ Focus on SQL authoring
-* ✅ Use SQL fragments
-* ✅ Use dynamic SQL for complex queries
-* ❌ No business logic
-* ❌ No business validations
+* Focus on SQL authoring
+* Use SQL fragments
+* Use dynamic SQL for complex queries
+* No business logic
+* No business validations
 ### Cross-Layer Communication
-* ✅ Controller ← DTO
-* ✅ Service ← Entity
-* ✅ Mapper ← Entity
-* ✅ Controller ← VO
-* ❌ Avoid cross-layer calls
-* ❌ Avoid reverse dependencies
+* Controller ← DTO
+* Service ← Entity
+* Mapper ← Entity
+* Controller ← VO
+* Avoid cross-layer calls
+* Avoid reverse dependencies
