@@ -1,6 +1,6 @@
 ﻿---
 name: best-java-structure
-description: Java Layered Architecture Design Pattern — A complete implementation guide for the classic five-layer architecture using Spring Boot + MyBatis-Plus. Suitable for bootstrapping new Java projects, refactoring existing architectures, establishing team development standards, and database migration scenarios.
+description: Java Layered Architecture Design Pattern — A complete implementation guide for the classic five-layer architecture using Spring Boot + MyBatis-Plus. Suitable for bootstrapping new Java projects, refactoring existing architectures, establishing team development standards,and database migration scenarios.
 ---
 
 # Java Layered Architecture Design Pattern (Spring Boot + MyBatis-Plus)
@@ -21,16 +21,16 @@ Use this skill in the following scenarios:
 - DTO/VO separation at API boundaries
 
 ## Quick Reference
-| Priority | Category | Impact Area | Prefix |
-|---------:|----------|------------|--------|
-| 1 | Separation of Concerns | Architectural clarity | -principle- |
-| 2 | Unidirectional Dependency | Dependency management | -dependency- |
-| 3 | Interface Abstraction | Replaceability | -abstraction- |
-| 4 | Data Transfer | API consistency | -data- |
-| 5 | Exception Handling | Error handling | -exception- |
-| 6 | Cross-Layer Invocation | Architectural compliance | -crosslayer- |
-| 7 | Reverse Dependency | Architectural compliance | -reverse- |
-| 8 | Entity Exposure | Security | -entity-exposure- |
+| Priority | Category                  | Impact Area              | Prefix            |
+| -------: | ------------------------- | ------------------------ | ----------------- |
+|        1 | Separation of Concerns    | Architectural clarity    | -principle-       |
+|        2 | Unidirectional Dependency | Dependency management    | -dependency-      |
+|        3 | Interface Abstraction     | Replaceability           | -abstraction-     |
+|        4 | Data Transfer             | API consistency          | -data-            |
+|        5 | Exception Handling        | Error handling           | -exception-       |
+|        6 | Cross-Layer Invocation    | Architectural compliance | -crosslayer-      |
+|        7 | Reverse Dependency        | Architectural compliance | -reverse-         |
+|        8 | Entity Exposure           | Security                 | -entity-exposure- |
 
 ## Core Principles
 ### 1. Separation of Concerns (SoC)
@@ -110,13 +110,13 @@ public class ProjectService {
 ```
 Presentation Layer → Business Logic Layer → Data Access Layer → Persistence Layer → Database Layer
 ```
-| Layer                    | Spring Stack         | Common Names            | Core Responsibilities                  |
-| ------------------------ | -------------------- | ----------------------- | -------------------------------------- |
-| **Presentation Layer**   | @Controller          | Controller, API         | Handle HTTP requests and responses     |
-| **Business Logic Layer** | @Service             | Service                 | Implement business rules and workflows |
-| **Data Access Layer**    | @Mapper              | Mapper, DAO             | Define DB access interfaces            |
-| **Persistence Layer**    | MyBatis XML, Entity  | Mapper XML, Entity      | SQL mapping and entity definitions     |
-| **Database Layer**       | MySQL                | Database                | Store and retrieve data                |
+| Layer                    | Spring Stack        | Common Names       | Core Responsibilities                  |
+| ------------------------ | ------------------- | ------------------ | -------------------------------------- |
+| **Presentation Layer**   | @Controller         | Controller, API    | Handle HTTP requests and responses     |
+| **Business Logic Layer** | @Service            | Service            | Implement business rules and workflows |
+| **Data Access Layer**    | @Mapper             | Mapper, DAO        | Define DB access interfaces            |
+| **Persistence Layer**    | MyBatis XML, Entity | Mapper XML, Entity | SQL mapping and entity definitions     |
+| **Database Layer**       | MySQL               | Database           | Store and retrieve data                |
 
 ## Layer Definitions
 ### Presentation Layer
