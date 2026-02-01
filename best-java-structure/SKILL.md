@@ -1,4 +1,4 @@
-﻿---
+---
 name: best-java-structure
 description: Java Layered Architecture Design Pattern — A complete implementation guide for the classic five-layer architecture using Spring Boot + MyBatis-Plus. Suitable for bootstrapping new Java projects, refactoring existing architectures, establishing team development standards,and database migration scenarios.
 ---
