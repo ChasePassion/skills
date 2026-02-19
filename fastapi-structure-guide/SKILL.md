@@ -39,9 +39,10 @@ Before writing any code, follow these six guiding principles:
    - Flow: DB Session → Repository → Service → API Route.
 
 4. **Mandatory Use of SQLModel**
-   - **All** database models and base schemas **must** use SQLModel (Pydantic v2 + SQLAlchemy 2.0).
+   - All database models and base schemas **must** use SQLModel (Pydantic v2 + SQLAlchemy 2.0).
    - One class serves as both DB table (`table=True`) and API schema base.
-   - Never use raw SQLAlchemy + separate Pydantic models unless in exceptional legacy cases.
+   - Never use raw SQLAlchemy + separate Pydantic models.
+   - Always consult `references/sqlmodel-reference.md` for exact syntax, schema variants, relationships, and FastAPI integration patterns.
 
 5. **Config Centralization**
    - All config via Pydantic Settings v2 (`BaseSettings`).
@@ -127,6 +128,8 @@ my-fastapi-project/
 
 When adding a new feature, follow these **6 Standard Steps** in strict order:
 
+**Before Step A**: Read `references/sqlmodel-reference.md`.
+
 **Step A: Database Model**  
 Add SQLModel class in `app/db/models.py` (or split file if large).
 
@@ -149,6 +152,10 @@ Create `app/api/v1/endpoints/resource.py` (thin routes).
 ---
 
 ## IV. Coding Rules (2026 Modern Examples)
+
+### Rule 0: SQLModel Strict Compliance
+All SQLModel code **must** exactly match patterns in `references/sqlmodel-reference.md`. 
+Any deviation must be rejected and corrected.
 
 ### Rule 1: API Routes Must Be Thin & Async
 
