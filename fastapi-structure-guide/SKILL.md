@@ -1,234 +1,234 @@
 ---
 name: fastapi-structure-guide
-description: "Trigger when the user wants to create a new FastAPI project, add new files/folders (features), refactor existing code, or asks about architectural best practices. This skill enforces a strict layered architecture and specific development workflow."
+description: "Trigger when the user wants to create a new FastAPI project, add new features, refactor code, or asks about architectural best practices. This skill enforces 2026 clean architecture with SQLModel, Repository Pattern, full async, and production-ready workflow."
 ---
 
-# FastAPI Structure Guide
+# FastAPI Structure Guide (2026 Optimized Edition)
 
 ## Intent
 
 Use this guide whenever generating code for a FastAPI project, specifically when:
 
 1. **Scaffolding** a brand new project.
-2. **Adding a new feature** (e.g., "Add an Order module") which requires creating files across multiple layers.
-3. **Refactoring** existing code to meet clean architecture standards.
+2. **Adding a new feature** (e.g., "Add an Order module").
+3. **Refactoring** existing code to meet 2026 clean architecture standards.
 
-You must strictly adhere to the **Core Principles**, **Project Structure**, **Development Workflow**, and **Coding Rules** defined below.
+You **must** strictly adhere to the **Core Principles**, **Project Structure**, **Development Workflow**, and **Coding Rules** defined below.
 
 ---
 
 ## I. Core Principles
 
-Before writing a single line of code, adhere to these four guiding principles:
+Before writing any code, follow these six guiding principles:
 
-1. **Separation of Concerns:**
-* **API Layer:** Responsible only for "Reception" (parsing requests, validating parameters).
-* **Service Layer:** Responsible for "Business" (logic calculation, decision making).
-* **DB/Model Layer:** Responsible for "Data" (storage access, shape definition).
-* *Rule:* Never write business logic inside an API Route function.
+1. **Separation of Concerns (Clean Architecture)**
+   - **API Layer**: Only reception, validation, HTTP concerns.
+   - **Service Layer**: Pure business logic and orchestration.
+   - **Repository Layer**: All data access (SQL, caching, external services).
+   - **DB/Model Layer**: Data definition (SQLModel).
+   - **Rule**: Never put business logic or raw SQL in API routes or services.
 
+2. **Full Async First**
+   - All routes, services, repositories must be `async def` by default.
+   - Use `async_sessionmaker` + `await` everywhere.
+   - Only use sync when absolutely necessary (e.g., legacy libs).
 
-2. **Dependency Injection:**
-* Do not instantiate components directly (e.g., `service = UserService()`).
-* Use FastAPI's `Depends` for injection.
-* **Flow:** DB Session -> injected into -> Service -> injected into -> API Route.
+3. **Repository Pattern + Dependency Injection**
+   - Services never touch Session directly.
+   - Use FastAPI `Depends` + `Annotated` for injection.
+   - Flow: DB Session → Repository → Service → API Route.
 
+4. **Mandatory Use of SQLModel**
+   - **All** database models and base schemas **must** use SQLModel (Pydantic v2 + SQLAlchemy 2.0).
+   - One class serves as both DB table (`table=True`) and API schema base.
+   - Never use raw SQLAlchemy + separate Pydantic models unless in exceptional legacy cases.
 
-3. **Config Centralization:**
-* Strictly prohibit hardcoded passwords, keys, or URLs in the code.
-* Manage all configurations via **Pydantic Settings** and read from environment variables (`.env`).
+5. **Config Centralization**
+   - All config via Pydantic Settings v2 (`BaseSettings`).
+   - Never hardcode secrets, URLs, or keys.
 
-
-4. **Mirrored Testing:**
-* The test directory structure must mirror the source code directory structure 1:1.
-* Use **SQLite In-Memory** and **Dependency Overrides** to mock the real environment.
-
-
+6. **Mirrored & Layered Testing**
+   - `tests/` mirrors `app/` 1:1.
+   - Separate `unit/`, `integration/`.
+   - Use SQLite in-memory + dependency overrides + pytest-asyncio.
 
 ---
 
-## II. Recommended Project Structure
-
-Use this standardized directory structure when creating files or folders:
+## II. Recommended Project Structure (2026 Standard)
 
 ```text
 my-fastapi-project/
-├── app/                        # Core Application Source
+├── app/                          # Core Application
 │   ├── __init__.py
-│   ├── main.py                 # 🚀 App Entry: Routes mounting, Exception handling
-│   ├── api/                    # 🌐 Interface Layer (Routes)
+│   ├── main.py                   # App factory + lifespan
+│   ├── api/                      # 🌐 API Layer
 │   │   ├── __init__.py
-│   │   └── v1/                 # Version Control
+│   │   └── v1/
 │   │       ├── __init__.py
-│   │       ├── api.py          # Router Aggregation (Include Routers)
-│   │       └── endpoints/      # Specific Business Endpoints
+│   │       ├── api.py            # Router aggregation
+│   │       └── endpoints/
 │   │           ├── __init__.py
 │   │           ├── users.py
 │   │           └── items.py
-│   ├── core/                   # ⚙️ Infrastructure Configuration
+│   ├── core/                     # ⚙️ Cross-cutting
 │   │   ├── __init__.py
-│   │   ├── config.py           # Pydantic Settings (Env Config)
-│   │   ├── logging.py          # Logging Config
-│   │   └── security.py         # Auth/Hashing Tools
-│   ├── db/                     # 🗄️ Database Layer
+│   │   ├── config.py             # Settings
+│   │   ├── logging.py
+│   │   ├── security.py
+│   │   └── exceptions.py         # Custom HTTP exceptions
+│   ├── db/                       # 🗄️ Database
 │   │   ├── __init__.py
-│   │   ├── session.py          # DB Connection & Session Factory
-│   │   └── tables.py           # SQLAlchemy ORM Definitions (DB Schema)
-│   ├── models/                 # 📝 Data Transfer Objects (DTOs)
+│   │   ├── session.py            # async_sessionmaker
+│   │   ├── models.py             # SQLModel definitions (table=True)
+│   │   └── alembic/              # Migrations
+│   ├── schemas/                  # 📝 API Schemas (DTOs)
 │   │   ├── __init__.py
-│   │   ├── user.py             # Pydantic Models (Request/Response)
-│   │   └── item.py
-│   └── services/               # 🧠 Business Logic Layer
-│       ├── __init__.py
-│       ├── base.py             # Optional: Base Service Class
-│       ├── user_service.py     # User-related business logic
-│       └── item_service.py
-├── tests/                      # ✅ Test Cases (Mirrored Structure)
+│   │   └── user.py               # UserCreate, UserResponse, etc.
+│   ├── repositories/             # 🗃️ Data Access Layer (NEW)
+│   │   ├── __init__.py
+│   │   ├── base.py
+│   │   ├── user_repository.py
+│   │   └── item_repository.py
+│   ├── services/                 # 🧠 Business Logic
+│   │   ├── __init__.py
+│   │   ├── base.py
+│   │   ├── user_service.py
+│   │   └── item_service.py
+│   └── dependencies.py           # Centralized Depends functions
+├── tests/                        # ✅ Tests (mirrored)
 │   ├── __init__.py
-│   ├── conftest.py             # Pytest Fixtures (DB override, Client)
-│   └── api/
-│       └── v1/
-│           └── endpoints/
-│               └── test_users.py
-├── .env                        # 🔐 Local Env Vars (Gitignored)
+│   ├── conftest.py
+│   ├── unit/
+│   └── integration/
+│       └── api/
+│           └── v1/
+│               └── endpoints/
+│                   └── test_users.py
+├── .env                          # Gitignored
+├── .env.example
 ├── .gitignore
-├── docker-compose.yaml         # Local Dev Orchestration
-├── Dockerfile                  # Image Build
-├── pyproject.toml              # Dependency Management (Recommend uv)
+├── docker-compose.yaml
+├── Dockerfile
+├── pyproject.toml                # uv + ruff + pyright + pytest-asyncio
 └── README.md
-
 ```
 
-### Directory Responsibilities
+### Directory Responsibilities (Updated)
 
-1. **`app/api/` (Interface Layer)**
-* **Responsibility:** Handle HTTP protocol specifics only.
-* **Contains:** Path definitions, HTTP methods (GET/POST), status codes, dependency injection declarations.
-* **Input/Output:** Pydantic Schemas.
-* **Rule:** This layer must be "thin". Functions should strictly be 5-10 lines, calling the Service layer and returning results.
-
-
-2. **`app/services/` (Business Logic Layer)**
-* **Responsibility:** The brain of the application. Handles complex business rules, calculations, and permission checks.
-* **Contains:** CRUD operations, 3rd-party API logic, data processing.
-* **Input/Output:** Pydantic Schemas or Raw Data -> ORM Objects or Pydantic Schemas.
-* **Rule:** Service classes must accept `Session` via `__init__` for easy testing mocks.
-
-
-3. **`app/models/` (Data Transfer Object Layer)**
-* **Responsibility:** Define data "shape" and validation rules for the API.
-* **Contains:** Pydantic Models (`BaseModel`).
-* **Distinction:** These are *not* DB tables. They are for API input/output (e.g., `UserCreate` vs `UserResponse`).
-
-
-4. **`app/db/` (Data Access Layer)**
-* **Responsibility:** Physical DB connection and Table definitions.
-* **Contains:** `session.py` (Engine/SessionLocal), `tables.py` (SQLAlchemy Base models/Columns).
-
-
-5. **`app/core/` (Cross-Cutting Concerns)**
-* **Responsibility:** Infrastructure supporting the app.
-* **Contains:** Config loading (`config.py`), logging, security tools. Code here is business-agnostic.
-
-
+- **`app/schemas/`**: API input/output models (inherits from SQLModel when possible).
+- **`app/repositories/`**: All DB operations, caching, external API calls. Thin wrapper around SQLModel.
+- **`app/services/`**: Business rules, orchestration, validation. Depends on repositories.
+- **`app/db/models.py`**: SQLModel classes with `table=True`.
+- **`app/core/exceptions.py`**: Custom exceptions + HTTPException handlers.
 
 ---
 
-## III. Creation Rules (General Development Workflow)
+## III. Creation Rules (Development Workflow)
 
-When implementing a new feature, follow these **5 Standard Steps** in order:
+When adding a new feature, follow these **6 Standard Steps** in strict order:
 
-### Step A: Define Data Storage (Database Layer)
+**Step A: Database Model**  
+Add SQLModel class in `app/db/models.py` (or split file if large).
 
-* **Principle:** Everything starts with data. Determine how the resource looks in the DB.
-* **Action:** Add new SQLAlchemy ORM class in `db/tables.py` (or specific file in `db/models/`).
-* **Naming:** PascalCase for Class (Singular), snake_case for Table Name (Plural).
+**Step B: API Schemas**  
+Create `app/schemas/resource.py` (Create/Update/Response variants).
 
-### Step B: Define Interaction Contract (Schemas/DTO Layer)
+**Step C: Repository**  
+Create `app/repositories/resource_repository.py` (CRUD methods).
 
-* **Principle:** Define how data moves over the network. Validate Input (Create/Update) and Normalize Output (Response).
-* **Action:** Create a new file in `models/`.
-* **Naming:** `resource_name.py`. Typically includes `Create`, `Update`, `Response` variants.
+**Step D: Service**  
+Create `app/services/resource_service.py` (business logic using repository).
 
-### Step C: Implement Business Logic (Service Layer)
+**Step E: API Endpoint**  
+Create `app/api/v1/endpoints/resource.py` (thin routes).
 
-* **Principle:** Write the "Verbs". This is the bridge between DB and API.
-* **Action:** Create a new file in `services/`.
-* **Naming:** `resource_name_service.py`. Class name ends with `Service`.
-
-### Step D: Expose API Interface (API Layer)
-
-* **Principle:** Define the entry point for external access.
-* **Action:** Create a new file in `api/v1/endpoints/`.
-* **Naming:** `resource_names.py` (Plural) to reflect RESTful style.
-
-### Step E: Registration & Wiring
-
-* **Principle:** New router files are isolated by default; they must be explicitly registered.
-* **Action:** Modify `api/v1/api.py` to include the new router.
+**Step F: Registration & Testing**  
+1. Register router in `app/api/v1/api.py`.  
+2. Write mirrored tests in `tests/integration/`.
 
 ---
 
-## IV. Coding Rules
+## IV. Coding Rules (2026 Modern Examples)
 
-### Rule 1: API Routes Must Be "Dumb"
-
-**❌ Wrong (Logic Leakage):**
+### Rule 1: API Routes Must Be Thin & Async
 
 ```python
-@router.post("/users")
-def create_user(user: UserCreate, db: Session = Depends(get_db)):
-    # Error: Logic and DB ops directly in route
-    hashed_password = hash_pw(user.password)
-    db_user = User(email=user.email, password=hashed_password)
-    db.add(db_user)
-    db.commit()
-    return db_user
-
-```
-
-**✅ Correct (Call Service):**
-
-```python
-@router.post("/users")
-def create_user(
-    user: UserCreate, 
-    service: UserService = Depends(get_user_service) # Injected Service
+# ✅ Correct
+@router.post("/users", response_model=UserResponse)
+async def create_user(
+    user_in: UserCreate,
+    service: UserService = Depends(get_user_service),
 ):
-    # Correct: Only forwards the request
-    return service.create_user(user)
-
+    return await service.create_user(user_in)
 ```
 
-### Rule 2: Service Layer Must Use Dependency Injection
-
-Service classes should not create the DB Session themselves; they must receive it in `__init__`.
+### Rule 2: Repository Pattern (Data Access)
 
 ```python
+# app/repositories/user_repository.py
+from sqlmodel.ext.async_session import AsyncSession
+from sqlmodel import select
+from app.db.models import User
+
+class UserRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def create(self, user: User) -> User:
+        self.session.add(user)
+        await self.session.commit()
+        await self.session.refresh(user)
+        return user
+
+    async def get_by_email(self, email: str) -> User | None:
+        statement = select(User).where(User.email == email)
+        result = await self.session.exec(statement)
+        return result.first()
+```
+
+### Rule 3: Service Layer (Business Logic)
+
+```python
+# app/services/user_service.py
 class UserService:
-    def __init__(self, session: Session):
-        self.session = session  # ✅ Dependency Injection
+    def __init__(self, repo: UserRepository):
+        self.repo = repo
 
-    def create_user(self, data: UserCreate):
-        # Business logic...
-        pass
-
+    async def create_user(self, data: UserCreate) -> User:
+        # Business rules here
+        if await self.repo.get_by_email(data.email):
+            raise UserAlreadyExists()
+        user = User(**data.model_dump(exclude={"password"}))
+        # hash password etc.
+        return await self.repo.create(user)
 ```
 
-### Rule 3: Config Must Use Pydantic
-
-Never use `os.getenv("KEY")` scattered in the code.
+### Rule 4: Dependencies (centralized)
 
 ```python
-# app/core/config.py
-class Settings(BaseSettings):
-    DB_URL: str
-    SECRET_KEY: str
+# app/dependencies.py
+from fastapi import Depends
+from sqlmodel.ext.async_session import async_sessionmaker
 
-settings = Settings()
+async def get_db() -> AsyncSession:
+    async with sessionmaker() as session:   # from db/session.py
+        yield session
 
-# Usage in other files
-from app.core.config import settings
-print(settings.DB_URL)
+def get_user_repository(db: AsyncSession = Depends(get_db)) -> UserRepository:
+    return UserRepository(db)
 
+def get_user_service(repo: UserRepository = Depends(get_user_repository)) -> UserService:
+    return UserService(repo)
+```
+
+### Rule 5: SQLModel Usage
+
+```python
+# app/db/models.py
+from sqlmodel import SQLModel, Field
+
+class User(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    email: str = Field(index=True, unique=True)
+    hashed_password: str
 ```
