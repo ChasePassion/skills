@@ -1,8 +1,6 @@
 ---
-
 name: fix-bug
 description: Used for locating, reproducing, validating, and fixing software defects. Applicable when the user asks to “fix a bug,” “locate an error,” “analyze and fix an error” “reproduce an issue,” “find the root cause,” and similar scenarios. 
-
 ---
 
 # Fix Bug
