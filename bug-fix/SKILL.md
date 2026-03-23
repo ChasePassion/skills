@@ -1,9 +1,9 @@
 ---
-name: fix-bug
-description: Used for locating, reproducing, validating, and fixing software defects. Applicable when the user asks to "fix a bug," "locate an error," "analyze and fix an error," "reproduce an issue," "find the root cause," and similar scenarios. This skill emphasizes evidence-first debugging: collect real bug facts before designing reduced reproductions, and do not treat a hypothesis experiment as proof of root cause.
+name: bug-fix
+description: Used for locating, reproducing, validating, and fixing software defects. Applicable when the user asks to "fix a bug," "locate an error," "analyze and fix an error," "reproduce an issue," "find the root cause," and similar scenarios. 
 ---
 
-# Fix Bug
+# Bug Fix
 
 Goal: Make the bug-fixing process reproducible, verifiable, and regression-safe, reducing speculative changes, fake test passes, fixing only symptoms without addressing root causes, and the problem of fixing one issue while breaking many others.
 
