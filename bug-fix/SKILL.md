@@ -1,6 +1,6 @@
 ---
 name: fix-bug
-description: Used for locating, reproducing, validating, and fixing software defects. Applicable when the user asks to “fix a bug,” “locate an error,” “analyze and fix an error” “reproduce an issue,” “find the root cause,” and similar scenarios. 
+description: Used for locating, reproducing, validating, and fixing software defects. Applicable when the user asks to "fix a bug," "locate an error," "analyze and fix an error," "reproduce an issue," "find the root cause," and similar scenarios. This skill emphasizes evidence-first debugging: collect real bug facts before designing reduced reproductions, and do not treat a hypothesis experiment as proof of root cause.
 ---
 
 # Fix Bug
@@ -10,18 +10,23 @@ Goal: Make the bug-fixing process reproducible, verifiable, and regression-safe,
 ## Core Principles
 
 * Understand the problem first, then modify the code.
+* Collect real bug facts before designing a reduced or synthetic reproduction.
+* Distinguish confirmed facts, unknowns, and hypotheses at all times.
 * Reproduce the bug first, then write the fix.
 * Make the test fail first, then make it pass.
 * Verify that the test is valid first, then trust the test result.
 * Prefer minimal, verifiable, and reversible fixes.
 * When a structural problem is discovered, clarify the repair level first; do not use the name of a hotfix to perform an unbounded refactor.
-* Do not casually delete debug logs, reproduction scripts, or现场 evidence before validation is complete.
+* A reduced reproduction can validate a hypothesis, but it does not prove the real root cause unless it preserves the confirmed real-world conditions.
+* Do not casually delete debug logs, reproduction scripts, or on-scene evidence before validation is complete.
 
 ## Hard Rules
 
 * No reproduction, no repair.
 * No failing test, no modification to business code, unless the user explicitly states that the current project has absolutely no practical automated testing foundation; even in that case, a minimal manual reproduction must still be performed first and evidence must be recorded.
 * If you have not seen “red first, then green,” the fix is not considered complete.
+* No hypothesis-led synthetic reproduction may be treated as proof of the real root cause by itself.
+* No root-cause claim before the evidence chain is explicit.
 * It is not allowed to modify test expectations to accommodate the current incorrect behavior.
 * It is not allowed to delete temporary logs that help locate the problem unless the fix has already been proven effective and the cleanup stage has been explicitly entered.
 
@@ -37,10 +42,11 @@ Each time this skill is executed, first output the following structured judgment
 * Risk level:
 * Whether it can currently be reproduced stably:
 
-### 2. Three-Layer Analysis
+### 2. Evidence and Analysis Status
 
 * Symptom layer: What problem did the user see?
-* Direct root cause layer: Which logic, state, contract, timing, or data caused this failure?
+* Confirmed facts: Which parts of the bug are already verified by evidence?
+* Unknowns and current hypotheses: What is still unknown, and what are the current possible causes? Label hypotheses explicitly as hypotheses.
 * Structural layer: Is this a derivative symptom of a larger design problem?
 
 ### 3. Repair Level Decision
@@ -54,6 +60,7 @@ Choose one of the following three levels and explain the reason:
 ### 4. Execution Plan
 
 * Reproduction method:
+* If a reduced reproduction is needed, which real conditions must it preserve:
 * Tests planned to be added or modified:
 * Expected minimal repair surface:
 * Validation scope that needs to be run:
@@ -68,26 +75,37 @@ Prioritize collecting the following information yourself; do not guess:
 * Reproduction steps
 * Input data / request parameters / sample files
 * Environment information: local, testing, production, system version, dependency versions, configuration differences
+* Exact runtime state when relevant: page state, auth state, item ordering, feature flags, screen size, rendered DOM/CSS state
 * Recent related changes: code, configuration, data, dependencies, deployment
 
-## Phase 1: Preserve the Scene and Reproduce
+At this stage, explicitly separate:
 
-Goal: Prove that the bug truly exists and that the reproduction path is credible.
+* Confirmed facts
+* Unknowns
+* Current hypotheses
+
+## Phase 1: Preserve the Scene and Reproduce the Real Path First
+
+Goal: Prove that the bug truly exists, and that the first reproduction path stays close to the real bug rather than a convenient guess.
 
 Execution requirements:
 
 * Prefer existing reproduction steps.
-* Try to construct a minimal reproduction.
+* First try to reproduce the bug as close as possible to the real path, real data, and real environment.
 * Only add temporary logs, traces, dumps, or extra assertions when necessary.
 * Save key evidence: inputs, outputs, stack traces, timelines, environment differences, screenshots, or command outputs.
 * Distinguish among three states: stable reproduction, occasional reproduction, and unable to reproduce.
 * If it is an occasional problem, prioritize checking concurrency, caching, asynchrony, retries, clocks, external dependencies, and environment differences.
+* Do not jump directly to a reduced or synthetic reproduction before capturing the real conditions.
+* If you later construct a smaller reproduction, explicitly record which real conditions it preserves and which it omits.
+* Treat a smaller reproduction as a hypothesis probe until the equivalence to the real bug is justified.
 
 When reproduction fails:
 
 * Do not enter the repair phase.
 * Output “currently cannot be reproduced stably.”
 * Provide the minimal information needed next or a plan to strengthen observability.
+* Do not use a synthetic reproduction alone to overclaim root cause.
 
 ## Phase 2: Choose the Appropriate Test Level
 
@@ -137,11 +155,12 @@ Output a brief root-cause explanation first, then modify the code. At a minimum,
 
 * At what layer does the problem occur: input validation, business logic, state management, caching, concurrency, data model, API contract, external dependency, configuration, or deployment?
 * Why does the current implementation fail?
+* What confirmed evidence supports this explanation, and what competing explanations have been ruled out?
 * Is this failure an isolated error, or a symptom of a structural problem?
 * Why was this level chosen: Patch / Local Refactor / Structural Follow-up?
 * If only a local fix is done now, what risks still remain later?
 
-If the root cause cannot be explained clearly, pause the repair and continue observation or narrow the reproduction range.
+If the root cause cannot be explained clearly, or still depends on an unverified hypothesis reproduction, pause the repair and continue observation or narrow the reproduction range.
 
 ## Phase 6: Implement the Minimal Fix
 
@@ -195,7 +214,7 @@ When the following signals appear, prioritize suspecting that this is not an iso
 * Similar bugs appear repeatedly
 * The same patch has to be copied to multiple places
 * Module responsibilities are chaotic and boundaries are unclear
-* Tests are very hard to write and require绕 many dependencies
+* Tests are very hard to write and require working around many dependencies
 * One modification often affects a large area
 * The same business rule is scattered across multiple files or repeatedly implemented across multiple layers
 * There is long-term contract drift among frontend and backend, the database, and interface documentation
@@ -208,6 +227,7 @@ Handling method:
 ## Common Mistakes That Must Be Avoided
 
 * Seeing an error and directly guessing the code location to modify
+* Building a convenience reproduction before capturing the real bug conditions, then treating it as proof of root cause
 * Fixing the code first, then adding a “passing test”
 * Tests only verifying that “the function was called,” instead of verifying the behavior the user actually cares about
 * Using mock to bypass the problem path
@@ -222,6 +242,7 @@ Only when all of the following conditions are met at the same time can this bug 
 
 * The bug has been reproduced, or its evidence chain is complete and credible
 * There is a failing test that can expose the problem, and it did indeed fail before the fix
+* If a reduced reproduction was used, it is shown to preserve the load-bearing conditions of the real bug
 * The root cause has been clearly analyzed
 * The repair level has been clearly defined
 * The newly added test turns green after the fix
