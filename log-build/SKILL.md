@@ -1,6 +1,6 @@
 ---
 name: log-build
-description: Add or refine sparse, structured, file-persisted application logs for code changes. Use when implementing or modifying complex business logic, critical state transitions, validation or parsing flows, boundary interactions (HTTP, DB, cache, queue, filesystem, subprocess), retries, fallbacks, async jobs, concurrency, or background tasks. Reuse the project's existing logging infrastructure whenever possible. Do not use for trivial edits, simple obvious CRUD, blanket "log everything" requests, or low-value noise.
+description: Add or refine sparse, structured, file-persisted application logs for code changes. Use when write code, implementing or modifying complex business logic, critical state transitions, validation or parsing flows, boundary interactions (HTTP, DB, cache, queue, filesystem, subprocess), retries, fallbacks, async jobs, concurrency, or background tasks. Reuse the project's existing logging infrastructure whenever possible. Do not use for trivial edits, simple obvious CRUD, blanket "log everything" requests, or low-value noise.
 ---
 
 # Log-build
