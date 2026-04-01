@@ -1,6 +1,6 @@
 ---
 name: express-improve
-description: Helps users design, optimize, and review the structure and content of speeches, presentations, and persuasive communication in a wide range of high-stakes scenarios. Applicable situations include, but are not limited to: startup pitches and co-founder recruiting, research presentations and thesis defenses, job talks and academic interviews, product demos and investor pitches, lab meetings and progress updates, public speaking and TEDx-style talks, conference presentations and panel remarks, oral exams and qualifying defenses, expressing viewpoints and persuading others, upward reporting and performance reviews, and internal proposals and solution walkthroughs.
+description: "Helps users design, optimize, and review the structure and content of speeches, presentations, and persuasive communication in a wide range of high-stakes scenarios. Applicable situations include, but are not limited to: startup pitches and co-founder recruiting, research presentations and thesis defenses, job talks and academic interviews, product demos and investor pitches, lab meetings and progress updates, public speaking and TEDx-style talks, conference presentations and panel remarks, oral exams and qualifying defenses, expressing viewpoints and persuading others, upward reporting and performance reviews, and internal proposals and solution walkthroughs."
 ---
 
 # Express-Improve: Make Ideas Heard, Understood, and Remembered
