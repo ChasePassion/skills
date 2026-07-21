@@ -1,0 +1,72 @@
+{
+  "manifest_version": 3,
+  "name": "X Bookmarks Manager",
+  "version": "0.2.9",
+  "description": "Sync your X (Twitter) bookmarks to your own backend. One-click import and real-time add/remove sync.",
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "tabs",
+    "tabGroups",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://x.com/*",
+    "https://twitter.com/*",
+    "https://api.x.com/*",
+    "https://api.twitter.com/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "X Bookmarks Manager"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://x.com/*",
+        "https://twitter.com/*"
+      ],
+      "js": [
+        "utils/event-bus.js",
+        "utils/tweet-parser.js",
+        "content/x-injector.js",
+        "content/import-engine.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://x.com/*",
+        "https://twitter.com/*"
+      ],
+      "js": [
+        "background/bridge.js"
+      ],
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["popup/popup.html", "icons/*.png"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

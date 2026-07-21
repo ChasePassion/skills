@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>X Bookmarks Manager</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <div class="logo">𝕏</div>
+    <div>
+      <div class="title">Bookmarks Manager</div>
+      <div class="subtitle" id="status">connecting…</div>
+    </div>
+  </header>
+
+  <section class="stats">
+    <div class="stat">
+      <div class="stat-label">已导入</div>
+      <div class="stat-value" id="bookmark-count">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">实时事件</div>
+      <div class="stat-value" id="total-events">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">导入状态</div>
+      <div class="stat-value" id="import-status">—</div>
+    </div>
+  </section>
+
+  <section class="import-panel">
+    <div class="section-title">一键全量导入</div>
+    <p class="hint">
+      打开 <code>x.com/i/bookmarks</code> 后点击导入。完成后会自动保存 JSON / JSONL。
+      之后在 X 上收藏或取消收藏，会按 <code>tweetId</code> 更新本地库，并覆盖写入
+      <code>x-bookmarks-live.json</code> 与 <code>x-bookmarks-live.readable.jsonl</code>。
+    </p>
+    <div class="warn-tip" id="import-warn-tip" role="status">
+      ⚠️ 导入过程中请不要关闭、刷新 X 收藏夹标签页，也不要在同一标签跳转到其它网页（可切换到其它标签）。
+    </div>
+    <div class="progress" id="import-progress">—</div>
+    <div class="actions import-actions">
+      <button id="btn-import" class="primary" type="button">开始全量导入</button>
+    </div>
+  </section>
+
+  <section class="save-panel" id="save-panel">
+    <div class="section-title">本地保存位置</div>
+    <div class="save-status" id="save-status">尚未保存到文件</div>
+    <div class="save-path-box">
+      <div class="path-label">完整 JSON（机器）</div>
+      <code id="save-path" title="">—</code>
+      <div class="path-label">可读 JSONL（人类）</div>
+      <code id="save-path-readable" title="">—</code>
+    </div>
+    <div class="save-meta" id="save-meta"></div>
+    <div class="actions import-actions">
+      <button id="btn-copy-path" type="button">复制完整路径</button>
+      <button id="btn-copy-readable" type="button">复制可读路径</button>
+      <button id="btn-open-folder" type="button">打开所在文件夹</button>
+      <button id="btn-export" type="button">再次导出</button>
+    </div>
+  </section>
+
+  <section class="events">
+    <div class="section-title">最近收藏样本</div>
+    <div id="bookmark-list"></div>
+  </section>
+
+  <section class="events">
+    <div class="section-title">最近事件</div>
+    <div id="event-list"></div>
+  </section>
+
+  <script src="popup.js"></script>
+</body>
+</html>
