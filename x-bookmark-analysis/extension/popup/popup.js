@@ -192,6 +192,21 @@ function setImportButton(state, unique) {
   }
 }
 
+function renderLiveSyncToggle(enabled) {
+  const input = $('#toggle-live-sync');
+  const label = $('#live-sync-label');
+  if (input && input !== document.activeElement) {
+    input.checked = !!enabled;
+  } else if (input && !liveSyncUserToggling) {
+    input.checked = !!enabled;
+  }
+  if (label) {
+    label.textContent = enabled ? 'On — listening' : 'Off — not listening';
+  }
+}
+
+let liveSyncUserToggling = false;
+
 async function refresh() {
   const resp = await chrome.runtime.sendMessage({ type: 'popup_get_full_state' });
   if (!resp) return;
@@ -229,14 +244,26 @@ async function refresh() {
   if (imp.finishedAt) prog.push(`finished ${fmtTime(imp.finishedAt)}`);
   $('#import-progress').textContent = prog.length ? prog.join(' · ') : '尚未开始';
 
+  // Avoid permanent "wait" cursor if status was stuck before reconcile
   if (isRunning) setImportButton('running', imp.unique || 0);
   else if (isSaving) setImportButton('saving');
   else setImportButton(imp.status || 'idle');
+
+  if (imp.status === 'error' && imp.error) {
+    const cur = $('#import-progress').textContent || '';
+    if (!/failed|stalled|error/i.test(cur) || imp.unique != null) {
+      $('#import-progress').textContent = `failed: ${imp.error}`;
+    }
+  }
 
   // Highlight do-not-close-tab tip while importing / saving
   const warnTip = $('#import-warn-tip');
   if (warnTip) {
     warnTip.classList.toggle('active', isRunning || isSaving);
+  }
+
+  if (!liveSyncUserToggling) {
+    renderLiveSyncToggle(!!resp.liveSyncEnabled);
   }
 
   renderSaveInfo(resp.lastSave);
@@ -259,16 +286,42 @@ async function refresh() {
   for (const e of resp.recentEvents) list.appendChild(renderEvent(e));
 }
 
+$('#toggle-live-sync')?.addEventListener('change', async (e) => {
+  const enabled = !!e.target.checked;
+  liveSyncUserToggling = true;
+  renderLiveSyncToggle(enabled);
+  try {
+    const resp = await chrome.runtime.sendMessage({
+      type: 'set_live_sync',
+      enabled,
+    });
+    if (!resp?.ok) {
+      e.target.checked = !enabled;
+      renderLiveSyncToggle(!enabled);
+    }
+  } catch {
+    e.target.checked = !enabled;
+    renderLiveSyncToggle(!enabled);
+  } finally {
+    liveSyncUserToggling = false;
+    refresh();
+  }
+});
+
 $('#btn-import').addEventListener('click', async () => {
   setImportButton('running', 0);
-  $('#import-progress').textContent = 'starting…';
+  $('#import-progress').textContent =
+    'opening bookmarks page & waiting for API template…';
   const warnTip = $('#import-warn-tip');
   if (warnTip) warnTip.classList.add('active');
   try {
+    // May navigate away from current X page and wait up to ~60s for ready state
     const resp = await chrome.runtime.sendMessage({ type: 'start_import' });
     if (!resp?.ok) {
       $('#import-progress').textContent = `failed: ${resp?.error || 'unknown'}`;
       setImportButton('error');
+    } else {
+      $('#import-progress').textContent = 'import started…';
     }
   } catch (e) {
     $('#import-progress').textContent = `failed: ${e.message || e}`;

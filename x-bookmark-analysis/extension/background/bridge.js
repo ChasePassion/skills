@@ -1,11 +1,43 @@
 // background/bridge.js
 // ISOLATED-world content script:
 // 1) MAIN → SW: forward xbm:event / xbm:import
-// 2) SW → MAIN: forward commands (import_all, import_abort)
+// 2) SW → MAIN: forward commands (import_all, import_abort, live sync flag)
 
 (() => {
   if (window.__xbmBridge) return;
   window.__xbmBridge = true;
+
+  // Mirror of chrome.storage liveSyncEnabled for MAIN-world gating
+  let liveSyncEnabled = false;
+
+  function publishLiveSyncToMain(enabled) {
+    liveSyncEnabled = !!enabled;
+    window.postMessage(
+      { source: 'xbm-bridge', cmd: 'set_live_sync', opts: { enabled: liveSyncEnabled } },
+      '*'
+    );
+    window.dispatchEvent(
+      new CustomEvent('xbm:cmd', { detail: { cmd: 'set_live_sync', opts: { enabled: liveSyncEnabled } } })
+    );
+  }
+
+  // Load initial flag
+  try {
+    chrome.storage.local.get(['liveSyncEnabled'], (data) => {
+      const on = typeof data.liveSyncEnabled === 'boolean' ? data.liveSyncEnabled : false;
+      publishLiveSyncToMain(on);
+    });
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== 'local' || !changes.liveSyncEnabled) return;
+      const on =
+        typeof changes.liveSyncEnabled.newValue === 'boolean'
+          ? changes.liveSyncEnabled.newValue
+          : false;
+      publishLiveSyncToMain(on);
+    });
+  } catch (err) {
+    console.error('[xbm bridge] live sync init failed', err);
+  }
 
   function forward(type, detail) {
     try {
@@ -19,7 +51,12 @@
   }
 
   window.addEventListener('xbm:event', (e) => {
-    forward('xbm_event', e.detail);
+    const d = e.detail;
+    // When live sync is off, do not forward bookmark add/remove
+    if (d && (d.action === 'add' || d.action === 'remove') && !liveSyncEnabled) {
+      return;
+    }
+    forward('xbm_event', d);
   });
 
   window.addEventListener('xbm:import', (e) => {
@@ -44,17 +81,21 @@
         sendResponse({ ok: true });
         return false;
       }
+      if (msg?.type === 'set_live_sync') {
+        publishLiveSyncToMain(!!msg.enabled);
+        sendResponse({ ok: true, liveSyncEnabled: !!msg.enabled });
+        return false;
+      }
       if (msg?.type === 'ping_main') {
         sendResponse({
           ok: true,
           installed: !!window.__xbmBridge,
-          // MAIN flags not visible here; page must be x.com
+          liveSyncEnabled,
           href: location.href,
         });
         return false;
       }
       if (msg?.type === 'get_import_state') {
-        // Ask MAIN via a synchronous custom event is impossible; use poll storage from SW instead.
         sendResponse({ ok: true, note: 'use popup_get_full_state' });
         return false;
       }

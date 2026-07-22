@@ -1,14 +1,15 @@
 {
   "manifest_version": 3,
   "name": "X Bookmarks Manager",
-  "version": "0.2.9",
+  "version": "0.3.2",
   "description": "Sync your X (Twitter) bookmarks to your own backend. One-click import and real-time add/remove sync.",
   "permissions": [
     "storage",
     "unlimitedStorage",
     "tabs",
     "tabGroups",
-    "downloads"
+    "downloads",
+    "scripting"
   ],
   "host_permissions": [
     "https://x.com/*",

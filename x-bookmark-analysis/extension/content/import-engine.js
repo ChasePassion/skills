@@ -112,19 +112,55 @@
     };
   }
 
-  async function fetchPage(template, cursor) {
+  async function fetchPage(template, cursor, { timeoutMs = 30000 } = {}) {
     const { url, init } = buildRequest(template, cursor);
     // Use native fetch (not our wrapper) if available
     const fetchFn = window.__xbmOriginalFetch || window.fetch;
-    const res = await fetchFn(url, init);
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`Bookmarks HTTP ${res.status}: ${text.slice(0, 200)}`);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetchFn(url, {
+        ...init,
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`Bookmarks HTTP ${res.status}: ${text.slice(0, 200)}`);
+      }
+      return await res.json();
+    } catch (e) {
+      if (e?.name === 'AbortError') {
+        throw new Error(`Bookmarks fetch timeout after ${timeoutMs}ms`);
+      }
+      throw e;
+    } finally {
+      clearTimeout(timer);
     }
-    return res.json();
+  }
+
+  async function fetchPageWithRetry(template, cursor, { retries = 3, timeoutMs = 30000 } = {}) {
+    let lastErr = null;
+    for (let i = 0; i < retries; i++) {
+      try {
+        return await fetchPage(template, cursor, { timeoutMs });
+      } catch (e) {
+        lastErr = e;
+        log(`fetch page failed (try ${i + 1}/${retries})`, e);
+        emit('progress', {
+          pages: state.pages,
+          unique: state.unique,
+          retry: i + 1,
+          error: String(e?.message || e),
+          heartbeat: true,
+        });
+        if (i < retries - 1) await sleep(1000 * (i + 1));
+      }
+    }
+    throw lastErr || new Error('Bookmarks fetch failed');
   }
 
   function sleep(ms) {
+    // Note: background tabs throttle timers (~1s+). Fetch timeout/retry handles hangs.
     return new Promise((r) => setTimeout(r, ms));
   }
 
@@ -132,15 +168,36 @@
    * Full import: page through all bookmarks until cursor ends.
    * @param {{ maxPages?: number, delayMs?: number }} opts
    */
+  async function waitForTemplate(timeoutMs = 45000, pollMs = 400) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const t = getTemplate();
+      if (t?.url) return t;
+      await sleep(pollMs);
+    }
+    return getTemplate();
+  }
+
   async function importAll(opts = {}) {
     if (state.running) {
       return { ok: false, error: 'import already running', state: getState() };
     }
 
-    const template = getTemplate();
+    // Template is captured only after X fires GraphQL Bookmarks.
+    // When user starts import right after navigation, wait instead of failing immediately.
+    let template = getTemplate();
+    if (!template?.url) {
+      emit('progress', {
+        pages: 0,
+        unique: 0,
+        waitingTemplate: true,
+      });
+      log('waiting for Bookmarks API template…');
+      template = await waitForTemplate(opts.templateWaitMs ?? 45000);
+    }
     if (!template?.url) {
       const err =
-        'No Bookmarks API template yet. Open https://x.com/i/bookmarks first so the extension can capture the request, then click Import again.';
+        'No Bookmarks API template yet. Stay on https://x.com/i/bookmarks until the list loads, then click Import again.';
       state.error = err;
       emit('error', { error: err });
       return { ok: false, error: err, state: getState() };
@@ -174,10 +231,25 @@
 
     emit('start', { maxPages });
 
+    // Heartbeat so SW/popup know import is alive when popup is closed or tab is backgrounded
+    const heartbeat = setInterval(() => {
+      if (!state.running) return;
+      emit('progress', {
+        pages: state.pages,
+        unique: state.unique,
+        imported: state.imported,
+        heartbeat: true,
+        hidden: !!document.hidden,
+      });
+    }, 4000);
+
     try {
       // First page: no cursor (or continue from last if resume)
       while (!state.aborted && state.pages < maxPages) {
-        const payload = await fetchPage(template, cursor);
+        const payload = await fetchPageWithRetry(template, cursor, {
+          retries: 3,
+          timeoutMs: opts.fetchTimeoutMs ?? 30000,
+        });
         const { bookmarks, bottomCursor } = parser.parseBookmarksPayload(payload);
         state.pages += 1;
 
@@ -227,7 +299,9 @@
           batch: bookmarks.length,
           fresh: fresh.length,
           unique: state.unique,
+          imported: state.unique,
           cursor: bottomCursor,
+          hidden: !!document.hidden,
         });
 
         log(`page ${state.pages}: +${fresh.length} (batch ${bookmarks.length}), total unique ${state.unique}`);
@@ -246,11 +320,14 @@
         }
 
         cursor = bottomCursor;
-        await sleep(delayMs);
+        // Background tabs throttle timers; keep a modest gap either way
+        const gap = document.hidden ? Math.max(delayMs, 600) : delayMs;
+        await sleep(gap);
       }
 
       state.running = false;
       state.finishedAt = Date.now();
+      clearInterval(heartbeat);
       emit('done', {
         pages: state.pages,
         unique: state.unique,
@@ -263,6 +340,7 @@
       state.running = false;
       state.finishedAt = Date.now();
       state.error = String(e?.message || e);
+      clearInterval(heartbeat);
       emit('error', { error: state.error });
       log('import failed', e);
       return { ok: false, error: state.error, state: getState() };

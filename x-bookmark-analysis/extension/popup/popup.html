@@ -29,12 +29,24 @@
     </div>
   </section>
 
+  <section class="live-sync-panel">
+    <div class="section-title">Live bookmark sync</div>
+    <label class="toggle-row" for="toggle-live-sync">
+      <span class="toggle-text">
+        <strong id="live-sync-label">Off</strong>
+        <span class="toggle-hint">When on: listen for bookmark / unbookmark and overwrite live files. When off: ignore those events.</span>
+      </span>
+      <input type="checkbox" id="toggle-live-sync" />
+      <span class="toggle-switch" aria-hidden="true"></span>
+    </label>
+  </section>
+
   <section class="import-panel">
     <div class="section-title">一键全量导入</div>
     <p class="hint">
       打开 <code>x.com/i/bookmarks</code> 后点击导入。完成后会自动保存 JSON / JSONL。
-      之后在 X 上收藏或取消收藏，会按 <code>tweetId</code> 更新本地库，并覆盖写入
-      <code>x-bookmarks-live.json</code> 与 <code>x-bookmarks-live.readable.jsonl</code>。
+      开启上方 Live sync 后，在 X 上收藏/取消收藏会按 <code>tweetId</code> 更新并覆盖
+      <code>x-bookmarks-live.json</code> / <code>.readable.jsonl</code>。
     </p>
     <div class="warn-tip" id="import-warn-tip" role="status">
       ⚠️ 导入过程中请不要关闭、刷新 X 收藏夹标签页，也不要在同一标签跳转到其它网页（可切换到其它标签）。

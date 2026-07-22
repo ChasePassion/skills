@@ -2,10 +2,12 @@
 name: x-bookmark-analysis
 description: >
   Scrape X (Twitter) bookmarks to local files, then analyze them with an agent.
-  Bundles a Chrome MV3 extension under extension/ for full import and live
-  bookmark/unbookmark sync. Produces machine JSON and human-readable JSONL for analysis.
-  Triggers: X bookmarks, Twitter bookmarks, scrape bookmarks, export bookmarks for analysis,
-  x-bookmarks-live, readable.jsonl, bookmark analysis, /x-bookmark-analysis.
+  Bundles a Chrome MV3 extension under extension/ for full import and optional
+  live bookmark/unbookmark sync (toggle in popup). Produces machine JSON and
+  human-readable JSONL for analysis.
+  Triggers: X bookmarks, Twitter bookmarks, scrape bookmarks, live sync toggle,
+  export bookmarks for analysis, x-bookmarks-live, readable.jsonl, bookmark analysis,
+  /x-bookmark-analysis.
 ---
 
 # X Bookmark Analysis
@@ -28,7 +30,7 @@ X Bookmarks (x.com)
 | Stage | Who | Output |
 |-------|-----|--------|
 | 1. Scrape | Extension on logged-in Chrome | Full library on disk |
-| 2. Keep current | Live bookmark / unbookmark | Overwrites live files |
+| 2. Keep current (optional) | Live sync **On** + bookmark/unbookmark on X | Overwrites live files |
 | 3. Analyze | Agent | Summaries, themes, search, recommendations, etc. |
 
 ---
@@ -130,14 +132,24 @@ Example analysis prompts the agent can serve:
 
 ## 3. Keeping data fresh
 
+### Live bookmark sync toggle (popup)
+
+| State | Behavior |
+|-------|----------|
+| **Off (default)** | Do **not** listen for bookmark add/remove; no live file rewrite |
+| **On** | Listen for add/remove by `tweetId` and overwrite live files (~1s debounce) |
+
+Full import always works whether the toggle is on or off.
+
 | Action | Effect |
 |--------|--------|
 | Full import again | New timestamped JSON + JSONL snapshot |
-| Bookmark on X | Live files update (~1s debounce); new item at top |
-| Unbookmark on X | Live files update; item removed by `tweetId` |
+| Toggle **On** + bookmark on X | Live files update; new item at top |
+| Toggle **On** + unbookmark on X | Live files update; item removed by `tweetId` |
+| Toggle **Off** + bookmark/unbookmark | Ignored by extension (no storage/file change) |
 | Manual export | New timestamped snapshot from current library |
 
-Live fixed paths (typical):
+Live fixed paths (typical, only when sync is **On**):
 
 ```text
 …/Downloads/x-bookmarks/x-bookmarks-live.json
@@ -175,7 +187,7 @@ window.__xbmImportEngine.getState()  // done when running === false
 | Ready after download | Load unpacked works with skill `extension/` only |
 | Scrape done | Plausible count + json/jsonl on disk |
 | Agent-ready | `.readable.jsonl` readable line-by-line with `id`/`text`/`url` |
-| Live OK | Live files track bookmark/unbookmark by `tweetId` |
+| Live OK | With toggle **On**, live files track bookmark/unbookmark by `tweetId`; with **Off**, events are ignored |
 
 ---
 

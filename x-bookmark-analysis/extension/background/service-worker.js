@@ -22,6 +22,41 @@ const LIVE_DISK_DEBOUNCE_MS = 1000;
 const LIVE_JSON_NAME = 'x-bookmarks/x-bookmarks-live.json';
 const LIVE_JSONL_NAME = 'x-bookmarks/x-bookmarks-live.readable.jsonl';
 
+/** When false: ignore bookmark add/remove (no storage update, no live file rewrite). Full import always allowed. */
+const LIVE_SYNC_KEY = 'liveSyncEnabled';
+const LIVE_SYNC_DEFAULT = false;
+
+async function getLiveSyncEnabled() {
+  const data = await chrome.storage.local.get([LIVE_SYNC_KEY]);
+  if (typeof data[LIVE_SYNC_KEY] === 'boolean') return data[LIVE_SYNC_KEY];
+  return LIVE_SYNC_DEFAULT;
+}
+
+async function setLiveSyncEnabled(enabled) {
+  const value = !!enabled;
+  await chrome.storage.local.set({ [LIVE_SYNC_KEY]: value });
+  // Notify all X tabs so content scripts can start/stop listening
+  try {
+    const tabs = await chrome.tabs.query({
+      url: ['https://x.com/*', 'https://twitter.com/*'],
+    });
+    for (const t of tabs) {
+      chrome.tabs.sendMessage(
+        t.id,
+        { type: 'set_live_sync', enabled: value },
+        () => void chrome.runtime.lastError
+      );
+    }
+  } catch {
+    /* ignore */
+  }
+  if (!value && liveDiskTimer) {
+    clearTimeout(liveDiskTimer);
+    liveDiskTimer = null;
+  }
+  return value;
+}
+
 const importState = {
   status: 'idle', // idle | running | done | error
   pages: 0,
@@ -35,9 +70,23 @@ const importState = {
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === 'xbm_event') {
-    handleEvent(msg.event, sender);
-    sendResponse({ ok: true });
-    return false;
+    // Async gate for live add/remove
+    (async () => {
+      const evt = msg.event;
+      if (evt && (evt.action === 'add' || evt.action === 'remove')) {
+        const on = await getLiveSyncEnabled();
+        if (!on) {
+          sendResponse({ ok: true, ignored: true, reason: 'live_sync_off' });
+          return;
+        }
+      }
+      handleEvent(evt, sender);
+      sendResponse({ ok: true });
+    })().catch((e) => {
+      console.error('[xbm] xbm_event handle error', e);
+      sendResponse({ ok: false, error: String(e?.message || e) });
+    });
+    return true;
   }
   if (msg?.type === 'xbm_import') {
     handleImportProgress(msg.event);
@@ -45,24 +94,29 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return false;
   }
   if (msg?.type === 'popup_get_full_state') {
-    chrome.storage.local.get(
-      [
-        'events',
-        'lastEventAt',
-        'lastSyncedAt',
-        'bookmarks',
-        'bookmarkIds',
-        'bookmarkCount',
-        'importState',
-        'lastSave',
-      ],
-      (data) => {
+    (async () => {
+      try {
+        // Reconcile stuck "running" UI when popup was closed mid-import
+        const reconciled = await reconcileImportState();
+        const data = await chrome.storage.local.get([
+          'events',
+          'lastEventAt',
+          'lastSyncedAt',
+          'bookmarks',
+          'bookmarkIds',
+          'bookmarkCount',
+          'importState',
+          'lastSave',
+          LIVE_SYNC_KEY,
+        ]);
         const events = data.events || [];
         const bookmarks = data.bookmarks || {};
         const count =
           data.bookmarkCount ??
           (typeof bookmarks === 'object' ? Object.keys(bookmarks).length : 0);
         const ordered = orderBookmarksList(bookmarks, data.bookmarkIds);
+        const liveSyncEnabled =
+          typeof data[LIVE_SYNC_KEY] === 'boolean' ? data[LIVE_SYNC_KEY] : LIVE_SYNC_DEFAULT;
         sendResponse({
           pendingCount: pendingEvents.size + pendingBookmarks.size,
           lastEventAt: data.lastEventAt || null,
@@ -70,13 +124,27 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           totalEvents: events.length,
           recentEvents: events.slice(-10).reverse(),
           bookmarkCount: count,
-          importState: data.importState || importState,
+          importState: reconciled || data.importState || importState,
           lastSave: data.lastSave || null,
-          // First 5 in X Bookmarks order (most recently bookmarked first)
+          liveSyncEnabled,
           sampleBookmarks: ordered.slice(0, 5).map(summarizeBookmark),
         });
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e?.message || e) });
       }
-    );
+    })();
+    return true;
+  }
+  if (msg?.type === 'set_live_sync') {
+    setLiveSyncEnabled(!!msg.enabled)
+      .then((enabled) => sendResponse({ ok: true, liveSyncEnabled: enabled }))
+      .catch((e) => sendResponse({ ok: false, error: String(e?.message || e) }));
+    return true;
+  }
+  if (msg?.type === 'get_live_sync') {
+    getLiveSyncEnabled()
+      .then((enabled) => sendResponse({ ok: true, liveSyncEnabled: enabled }))
+      .catch((e) => sendResponse({ ok: false, error: String(e?.message || e) }));
     return true;
   }
   if (msg?.type === 'popup_clear_events') {
@@ -134,23 +202,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === 'start_import') {
     (async () => {
       try {
-        const tabs = await chrome.tabs.query({
-          url: ['https://x.com/*', 'https://twitter.com/*'],
-        });
-        let tab =
-          tabs.find((t) => /\/i\/bookmarks/.test(t.url || '')) ||
-          tabs.find((t) => /x\.com|twitter\.com/.test(t.url || '')) ||
-          null;
-
-        if (!tab) {
-          tab = await chrome.tabs.create({ url: 'https://x.com/i/bookmarks', active: true });
-          await sleep(2500);
-        } else if (!/\/i\/bookmarks/.test(tab.url || '')) {
-          await chrome.tabs.update(tab.id, { url: 'https://x.com/i/bookmarks', active: true });
-          await sleep(2500);
-        } else {
-          await chrome.tabs.update(tab.id, { active: true });
-        }
+        const tab = await ensureBookmarksTabReady();
 
         importState.status = 'running';
         importState.error = null;
@@ -161,13 +213,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         importState.imported = 0;
         await chrome.storage.local.set({ importState: { ...importState } });
 
-        await sleep(1500);
-
-        const resp = await chrome.tabs.sendMessage(tab.id, {
-          type: 'start_import',
-          opts: msg.opts || {},
+        // Wait until content scripts are injected AND Bookmarks GraphQL template is captured
+        // (fixed sleep was too short when navigating from a non-bookmarks page)
+        const ready = await waitForImportReady(tab.id, {
+          timeoutMs: 60000,
+          pollMs: 500,
         });
-        sendResponse({ ok: true, tabId: tab.id, resp });
+
+        const resp = await sendStartImportWithRetry(tab.id, msg.opts || {});
+        sendResponse({
+          ok: true,
+          tabId: tab.id,
+          ready,
+          resp,
+        });
       } catch (e) {
         importState.status = 'error';
         importState.error = String(e?.message || e);
@@ -204,19 +263,22 @@ function handleImportProgress(evt) {
   if (evt.type === 'start') {
     importState.status = 'running';
     importState.startedAt = Date.now();
+    importState.lastProgressAt = Date.now();
     importState.error = null;
   } else if (evt.type === 'progress') {
     importState.status = 'running';
     importState.pages = evt.pages ?? importState.pages;
     importState.unique = evt.unique ?? importState.unique;
-    importState.imported = evt.unique ?? importState.imported;
+    importState.imported = evt.unique ?? evt.imported ?? importState.imported;
     importState.lastProgressAt = Date.now();
+    if (evt.error) importState.lastSoftError = String(evt.error);
   } else if (evt.type === 'done') {
     importState.status = 'done';
     importState.pages = evt.pages ?? importState.pages;
     importState.unique = evt.unique ?? importState.unique;
     importState.imported = evt.unique ?? importState.imported;
     importState.finishedAt = Date.now();
+    importState.lastProgressAt = Date.now();
     // Persist state, flush any pending batches, then auto-save JSON to disk
     chrome.storage.local.set({ importState: { ...importState } }, () => {
       flush()
@@ -245,8 +307,104 @@ function handleImportProgress(evt) {
     importState.status = 'error';
     importState.error = evt.error || 'unknown error';
     importState.finishedAt = Date.now();
+    importState.lastProgressAt = Date.now();
   }
   chrome.storage.local.set({ importState: { ...importState } });
+}
+
+const IMPORT_STALL_MS = 120000; // 2 minutes without progress → treat as stalled
+
+/**
+ * Fix stuck "importing…" UI when popup was closed and done/error messages were missed,
+ * or when the bookmarks tab was closed / import hung.
+ */
+async function reconcileImportState() {
+  const data = await chrome.storage.local.get(['importState']);
+  const st = { ...(data.importState || importState) };
+  if (st.status !== 'running') {
+    Object.assign(importState, st);
+    return st;
+  }
+
+  const last = st.lastProgressAt || st.startedAt || 0;
+  const age = Date.now() - last;
+
+  // Probe page engine state
+  let pageState = null;
+  try {
+    const tabs = await chrome.tabs.query({
+      url: ['https://x.com/*', 'https://twitter.com/*'],
+    });
+    const tab =
+      tabs.find((t) => /\/i\/bookmarks/i.test(t.url || '')) ||
+      tabs[0] ||
+      null;
+    if (!tab) {
+      st.status = 'error';
+      st.error =
+        'X tab closed during import. Re-open https://x.com/i/bookmarks and import again.';
+      st.finishedAt = Date.now();
+      Object.assign(importState, st);
+      await chrome.storage.local.set({ importState: { ...st } });
+      return st;
+    }
+    const [inj] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      world: 'MAIN',
+      func: () =>
+        window.__xbmImportEngine ? window.__xbmImportEngine.getState() : null,
+    });
+    pageState = inj?.result || null;
+  } catch (e) {
+    pageState = { probeError: String(e?.message || e) };
+  }
+
+  if (pageState && pageState.running === false && pageState.finishedAt) {
+    if (pageState.error) {
+      st.status = 'error';
+      st.error = pageState.error;
+    } else {
+      st.status = 'done';
+      st.error = null;
+    }
+    st.pages = pageState.pages ?? st.pages;
+    st.unique = pageState.unique ?? st.unique;
+    st.imported = pageState.unique ?? st.imported;
+    st.finishedAt = Date.now();
+    st.lastProgressAt = Date.now();
+    Object.assign(importState, st);
+    await chrome.storage.local.set({ importState: { ...st } });
+    // If page finished successfully but SW missed auto-save, try save once
+    if (st.status === 'done') {
+      saveBookmarksToDisk({ reason: 'import' }).catch(() => {});
+    }
+    return st;
+  }
+
+  if (pageState && pageState.running === true) {
+    // Still running on page — sync counters; keep UI honest
+    st.pages = pageState.pages ?? st.pages;
+    st.unique = pageState.unique ?? st.unique;
+    st.imported = pageState.unique ?? st.imported;
+    st.lastProgressAt = Date.now();
+    Object.assign(importState, st);
+    await chrome.storage.local.set({ importState: { ...st } });
+    return st;
+  }
+
+  // No live page engine, or stalled too long
+  if (age > IMPORT_STALL_MS) {
+    st.status = 'error';
+    st.error =
+      'Import stalled (no progress for 2+ minutes). Keep the X bookmarks tab open in the foreground and try again.';
+    st.finishedAt = Date.now();
+    Object.assign(importState, st);
+    await chrome.storage.local.set({ importState: { ...st } });
+    return st;
+  }
+
+  Object.assign(importState, st);
+  return st;
 }
 
 function handleEvent(evt) {
@@ -883,6 +1041,166 @@ chrome.downloads.onChanged.addListener((delta) => {
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+function isBookmarksUrl(url) {
+  return /https?:\/\/(x|twitter)\.com\/i\/bookmarks/i.test(url || '');
+}
+
+/**
+ * Find or open X bookmarks tab and wait until navigation completes.
+ */
+async function ensureBookmarksTabReady() {
+  const tabs = await chrome.tabs.query({
+    url: ['https://x.com/*', 'https://twitter.com/*'],
+  });
+  let tab =
+    tabs.find((t) => isBookmarksUrl(t.url || '')) ||
+    tabs.find((t) => /x\.com|twitter\.com/.test(t.url || '')) ||
+    null;
+
+  if (!tab) {
+    tab = await chrome.tabs.create({ url: 'https://x.com/i/bookmarks', active: true });
+  } else if (!isBookmarksUrl(tab.url || '')) {
+    tab = await chrome.tabs.update(tab.id, {
+      url: 'https://x.com/i/bookmarks',
+      active: true,
+    });
+  } else {
+    tab = await chrome.tabs.update(tab.id, { active: true });
+  }
+
+  await waitForTabComplete(tab.id, 45000);
+  // Re-read URL after navigation
+  tab = await chrome.tabs.get(tab.id);
+  if (!isBookmarksUrl(tab.url || '')) {
+    throw new Error(`Expected bookmarks page, got: ${tab.url || '(empty)'}`);
+  }
+  return tab;
+}
+
+async function waitForTabComplete(tabId, timeoutMs = 45000) {
+  const start = Date.now();
+  // Already complete?
+  try {
+    const t = await chrome.tabs.get(tabId);
+    if (t.status === 'complete' && isBookmarksUrl(t.url || '')) {
+      // Give SPA a moment to mount after "complete"
+      await sleep(400);
+      return t;
+    }
+  } catch {
+    /* continue polling */
+  }
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = async (tab, err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      if (err) reject(err);
+      else {
+        await sleep(600); // SPA network may still be in flight after complete
+        resolve(tab);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      finish(null, new Error('Timeout waiting for bookmarks tab to finish loading'));
+    }, timeoutMs);
+
+    function onUpdated(id, info, tab) {
+      if (id !== tabId) return;
+      if (info.status === 'complete' && isBookmarksUrl(tab?.url || '')) {
+        finish(tab);
+      }
+    }
+
+    chrome.tabs.onUpdated.addListener(onUpdated);
+
+    // Poll fallback (some navigations miss events)
+    (async () => {
+      while (!settled && Date.now() - start < timeoutMs) {
+        try {
+          const t = await chrome.tabs.get(tabId);
+          if (t.status === 'complete' && isBookmarksUrl(t.url || '')) {
+            await finish(t);
+            return;
+          }
+        } catch {
+          /* tab gone */
+        }
+        await sleep(300);
+      }
+    })();
+  });
+}
+
+/**
+ * Poll MAIN world until injector + import engine + Bookmarks request template exist.
+ * Template only appears after X fires GraphQL Bookmarks — that is the real race.
+ */
+async function waitForImportReady(tabId, { timeoutMs = 60000, pollMs = 500 } = {}) {
+  const start = Date.now();
+  let last = null;
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const [inj] = await chrome.scripting.executeScript({
+        target: { tabId },
+        world: 'MAIN',
+        func: () => ({
+          href: location.href,
+          installed: !!window.__xbmInstalled,
+          hasEngine: !!window.__xbmImportEngine,
+          hasTemplate: !!(
+            window.__xbmBookmarksRequestTemplate &&
+            window.__xbmBookmarksRequestTemplate.url
+          ),
+          templateOp: window.__xbmBookmarksRequestTemplate?.opName || null,
+        }),
+      });
+      last = inj?.result || null;
+      if (
+        last &&
+        /\/i\/bookmarks/i.test(last.href || '') &&
+        last.installed &&
+        last.hasEngine &&
+        last.hasTemplate
+      ) {
+        return last;
+      }
+    } catch (e) {
+      last = { error: String(e?.message || e) };
+    }
+    await sleep(pollMs);
+  }
+  throw new Error(
+    'Bookmarks page not ready for import (waiting for content script + GraphQL template). ' +
+      'Stay on https://x.com/i/bookmarks and try again. Last state: ' +
+      JSON.stringify(last)
+  );
+}
+
+async function sendStartImportWithRetry(tabId, opts, attempts = 5) {
+  let lastErr = null;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const resp = await chrome.tabs.sendMessage(tabId, {
+        type: 'start_import',
+        opts: opts || {},
+      });
+      return resp;
+    } catch (e) {
+      lastErr = e;
+      // Content script may still be injecting after navigation
+      await sleep(400 + i * 200);
+    }
+  }
+  throw new Error(
+    'Could not reach content script to start import: ' + String(lastErr?.message || lastErr)
+  );
 }
 
 chrome.runtime.onInstalled.addListener(() => {

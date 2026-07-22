@@ -6,8 +6,32 @@
 (function () {
   if (window.__xbmInstalled) return;
   window.__xbmInstalled = true;
+  // Live add/remove listening (default off until popup enables)
+  window.__xbmLiveSyncEnabled = false;
 
   const log = (...args) => console.log('%c[xbm]', 'color:#1D9BF0;font-weight:bold', ...args);
+
+  function isLiveSyncOn() {
+    return !!window.__xbmLiveSyncEnabled;
+  }
+
+  function applyLiveSyncFlag(enabled) {
+    window.__xbmLiveSyncEnabled = !!enabled;
+    log('live sync', window.__xbmLiveSyncEnabled ? 'ON' : 'OFF');
+  }
+
+  window.addEventListener('xbm:cmd', (e) => {
+    if (e.detail?.cmd === 'set_live_sync') {
+      applyLiveSyncFlag(!!e.detail?.opts?.enabled);
+    }
+  });
+  window.addEventListener('message', (e) => {
+    const data = e.data;
+    if (!data || data.source !== 'xbm-bridge') return;
+    if (data.cmd === 'set_live_sync') {
+      applyLiveSyncFlag(!!data.opts?.enabled);
+    }
+  });
 
   // Keep native fetch for import engine (avoid recursive interception side-effects)
   window.__xbmOriginalFetch = window.fetch.bind(window);
@@ -124,6 +148,10 @@
   }
 
   function postEvent(action, info) {
+    // Gate live bookmark add/remove when toggle is off (full import actions still pass)
+    if ((action === 'add' || action === 'remove') && !isLiveSyncOn()) {
+      return;
+    }
     const evt = {
       source: info.source || 'graphql',
       action,
