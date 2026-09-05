@@ -1,15 +1,15 @@
 ---
 name: architecture-diagram-draw
-description: Draw clear, audience-appropriate software architecture diagrams that communicate scope, structure, interfaces, and relationships without mixing abstraction levels.
+description: Draw clear, audience-appropriate software architecture diagrams and their companion sequence diagrams that communicate scope, structure, interfaces, and relationships without mixing abstraction levels or mixing static structure with runtime flow.
 ---
 
 # architecture-diagram-draw
 
 ## Purpose
 
-Use this skill to produce software architecture diagrams that are easy to read, accurate enough to support engineering discussion, and scoped to a specific audience and decision.
+Use this skill to produce software architecture diagrams that are easy to read, accurate enough to support engineering discussion, and scoped to a specific audience and decision. When the topic involves runtime behavior (request lifecycles, agent loops, event flows), the deliverable is typically a **pair**: a static layered architecture diagram plus a dynamic sequence diagram.
 
-This skill is for communication first, not for drawing everything that exists. A good architecture diagram should answer a concrete question, at a single abstraction level, with explicit semantics.
+This skill is for communication first, not for drawing everything that exists. A good architecture diagram should answer a concrete question, at a single abstraction level, with explicit semantics. A good sequence diagram should answer "how does one request traverse those structures over time" — and nothing else.
 
 ---
 
@@ -18,6 +18,7 @@ This skill is for communication first, not for drawing everything that exists. A
 Use this skill when the user asks to:
 
 - draw or redesign a software architecture diagram
+- draw a sequence diagram for a request lifecycle / agent loop / event flow, or the paired "architecture + sequence" set for a system
 - explain a system visually
 - prepare a diagram for a report, review, onboarding, design doc, pitch, or presentation
 - convert a textual system description into a context / container / component / deployment / runtime diagram
@@ -100,6 +101,16 @@ Choose a diagram structure that can be updated without pain. Do not create visua
 
 Keep the source editable and make assumptions visible.
 
+### 8. Separate static structure from dynamic flow
+A layered architecture diagram shows **structure and dependency**: vertical stacking where upper layers run on / reuse lower layers. It must NOT contain request-path arrows, numbered steps (①→②→③), or cross-layer "and then" edges — those belong to the sequence diagram.
+
+If you are explaining a running system, produce the pair and cross-reference them ("static structure: see diagram A; one request's path: see diagram B"). Never merge the two views into one picture.
+
+### 9. Legend and diagram must align in both directions
+Everything the legend mentions must be visibly present in the diagram, and every distinct visual encoding in the diagram (line style, border, grouping label) must be covered by the legend. If the legend references layer identifiers (L1/L2/L3/L4), those identifiers must literally appear inside the diagram's group titles — not only in the surrounding prose.
+
+Non-callers must not be drawn as callers. Instruction libraries, configuration data, plugin capabilities, and per-request injected payloads are not invokers — draw them as dashed side-attachments ("injected into", "mounted on") to the layer that consumes them, and keep the main call chain reserved for actual invokers.
+
 ---
 
 ## Required inputs
@@ -139,13 +150,19 @@ Examples:
 - This diagram is for reviewers to understand trust boundaries and external dependencies.
 - This diagram is for a technical report to explain the progression from LLM to multi-agent orchestrator.
 
-### Step 2. Select the right diagram type
-Use this quick mapping:
+### Step 2. Select the right deliverable(s)
+First decide the deliverable **set**, then the type:
+
+- Does the audience need to understand **structure**? -> at least one static diagram (context / container / component / deployment)
+- Does the audience need to understand **runtime behavior** (request lifecycle, loop mechanics, event flow)? -> add a **sequence diagram**
+- Explaining a whole system? -> default to the **pair**: one static layered diagram + one sequence diagram, cross-referencing each other
+
+Then pick the static view via this mapping:
 
 - Need to show system boundary and external actors -> **System Context**
 - Need to show major services / apps / databases / queues -> **Container**
 - Need to show internals of one service -> **Component**
-- Need to show request flow / event flow / handoff -> **Dynamic / Runtime**
+- Need to show request flow / event flow / handoff -> **Dynamic / Runtime** (realize this as a sequence diagram, not as arrows crossing a layered block diagram)
 - Need to show cloud resources / nodes / networks -> **Deployment**
 - Need to show business inputs/outputs across boundaries -> **Business Context / Data Flow flavored context**
 
@@ -281,6 +298,14 @@ After the diagram, include a short section with:
 ### Step 11. Self-review before delivering
 Run the checklist at the end of this file.
 
+### Step 12. Validate before delivering
+Mechanically verify, ideally with a small script:
+
+- **Mermaid structure**: every `subgraph` has a matching `end`; every edge references a defined node; `alt/else` blocks have their `end`.
+- **Label width budget** (CJK text does not auto-wrap): subgraph title ≤ ~23 CJK chars, node line ≤ ~22, edge label ≤ ~11. Split with `<br/>`.
+- **Legend alignment**: every legend claim appears in the diagram and vice versa.
+- **Doc integration** (when embedding in docs): relative links resolve; any `file:line` anchors cited in prose match the actual files.
+
 ---
 
 ## Recommended output structure
@@ -361,6 +386,16 @@ Fix: add a short textual note.
 The output is visually polished but difficult to edit, update, or version.
 
 Fix: prefer source-first representations such as Mermaid, PlantUML, Structurizr DSL, or a clearly structured textual diagram spec.
+
+### Anti-pattern 11. Mixing static and dynamic in one picture
+A layered block diagram with numbered request-path arrows (①→②→③) crossing the layers, loop-backs, and "then/returns" edge labels. Readers cannot tell whether vertical means dependency or time.
+
+Fix: split into the deliverable pair — vertical-dependency architecture diagram + autonumbered sequence diagram — and cross-reference them. Keep temporal vocabulary out of the static diagram's labels.
+
+### Anti-pattern 12. Legend disconnected from the diagram
+The legend references labels (L1–L4), colors, or line styles that do not appear in the diagram — or the diagram uses encodings the legend never explains. Worse: the legend narrates meta-information (file inventory, config tables) instead of teaching how to read the picture.
+
+Fix: enforce two-way alignment (legend ⇄ diagram); put layer identifiers literally inside group titles; replace meta-dump legends with a short reading guide (reading order, key takeaway, deliberate omissions).
 
 ---
 
@@ -451,6 +486,8 @@ Use when:
 - event-driven behavior
 - agent orchestration / tool invocation / workflow execution
 
+Realize this as a **sequence diagram** (see the pairing guide below), not as numbered arrows crossing a layered block diagram.
+
 ### Deployment Diagram
 Show:
 
@@ -461,6 +498,41 @@ Show:
 Use when:
 
 - ops, infra, security, latency, availability, compliance discussions
+
+---
+
+## The deliverable pair: layered architecture diagram + sequence diagram
+
+When documenting a real system, the strongest default output is two diagrams that cross-reference each other:
+
+1. **Static layered architecture diagram** (flowchart, top-to-bottom): vertical = dependency direction, upper layers run on / reuse lower layers. Side-attach non-invokers (config/instruction libraries, plugin capability packs) with dashed "mounted on / injected into" edges. State the reading rule in one sentence under the diagram ("vertical means dependency; upper runs on lower").
+2. **Dynamic sequence diagram**: one concrete request or task traversing those same components over time, with `autonumber` steps, `alt/else` for execution branches, and `Note over` for phase summaries.
+
+Rules for the pair:
+
+- The sequence diagram carries everything the static diagram deliberately excludes: numbered request steps (① SSE → ② instruction injected → ③ model API → ④ tool-call returns), loop-backs, and branching paths.
+- Participants in the sequence diagram should map 1:1 to boxes in the static diagram (name them the same, optionally grouped by layer, e.g. `participant L1 as L1 · /api/llm/stream`). A reader must be able to hop between the two diagrams without translation.
+- Each diagram ends with a one-line pointer to the other ("static structure: §2 / one request's path: §7").
+- Do not put temporal vocabulary ("then", "returns", step numbers) into the static diagram's edge labels; use dependency vocabulary ("runs on", "calls via SSE", "mounted on").
+
+Sequence diagram mechanics that earn their keep:
+
+- `autonumber` — the step numbers ARE the request path narrative
+- `alt / else` — execution branching (e.g. one tool call resolving differently on desktop vs browser, local vs remote execution)
+- `Note over A,B` — phase summaries spanning participants ("model plans wiring, then submits for validation")
+- `loop` — for retry / auto-continue cycles (e.g. tool output fed back, next round auto-triggered)
+
+---
+
+## Codebase documentation mode: directory anchoring
+
+When the diagram documents a real repository (architecture docs, onboarding), anchor every group to an actual path so the reader can navigate from diagram to code:
+
+- **Group title = real directory + one-phrase duty**, e.g. `📁 src/express/ — HTTP entry layer`. Keep titles short (see CJK width budget); put full duty sentences in the surrounding prose, never inside the diagram.
+- **Node = path: duty**, first line the file or directory, following lines the responsibility: `routes/llm.ts<br/>POST /api/llm/stream<br/>SSE relay + billing`.
+- **Merge, don't enumerate**: collapse minor files into their directory node; note the merge in the legend ("minor files folded, not exhaustively listed"). A diagram that lists every file stops being a map and becomes a manifest.
+- **Every module claim in prose should carry a `file:line` anchor** so readers can verify against code; verify those anchors before delivering (Step 12).
+- Distinguish edge semantics and say so in the legend: solid = runtime call (label with protocol / IPC channel), dashed = static dependency / injection / not-yet-wired, dashed border = external system. Consistency across all diagrams in the same document matters more than any single convention.
 
 ---
 
@@ -542,6 +614,26 @@ If the user wants a rendered image, still prefer producing an editable source re
 
 ---
 
+## Mermaid rendering practice (CJK and clipping)
+
+Mermaid does not auto-wrap CJK (Chinese/Japanese/Korean) text. Long labels silently overflow their box, get clipped by group borders, or collide with edges. Follow these budgets and mechanics:
+
+**Width budgets (count CJK chars; Latin ≈ half):**
+
+- subgraph title: ≤ ~23 CJK chars — use "path — duty phrase", move full duty sentences to prose
+- node text: split manually with `<br/>`, ≤ ~22 chars per line; first line = path/name, following lines = duty
+- edge label: ≤ ~11 chars — long labels are a top source of overlap; push detail into node text or prose
+
+**Mechanics:**
+
+- Add spacing via an init directive: `%%{init: {"flowchart": {"nodeSpacing": 50, "rankSpacing": 60}} }%%`
+- Cross-group edges should start from a **node**, not from a subgraph container — subgraph-sourced edges render less predictably
+- Do not put `direction` inside subgraphs of a flowchart; it is often ignored across cross-links and causes layout jumps
+- In sequence diagrams, wrap long participant aliases with `<br/>` the same way
+- When the renderer is GitHub, preview once — box-drawing alignment in ASCII wireframes and mermaid layout both deserve a visual check
+
+---
+
 ## Delivery template
 
 Use this template when replying.
@@ -554,15 +646,21 @@ Use this template when replying.
 - [...]
 
 ## Diagram type
-[System Context / Container / Component / Dynamic / Deployment]
+[Static view: System Context / Container / Component / Deployment] (+ Sequence, if runtime behavior is in scope)
 
-## Diagram source
+## Diagram source — static structure
 ```mermaid
-[diagram code]
+[layered architecture diagram: vertical = dependency, upper runs on lower]
+```
+
+## Diagram source — sequence (when runtime behavior is in scope)
+```mermaid
+sequenceDiagram
+[one concrete request traversing the same components, autonumbered]
 ```
 
 ## Notes
-- [How to read it]
+- [How to read each diagram; how the pair cross-references]
 - [Why some details were omitted]
 - [Important boundaries / protocols / risks]
 
@@ -606,9 +704,16 @@ Before delivering, verify all items below.
 ### Visual semantics
 - [ ] Colors, borders, line types, and icons have meaning.
 - [ ] A legend is included when needed.
+- [ ] Legend and diagram align in both directions (every legend claim visible; every encoding explained; layer ids like L1–L4 appear inside group titles if referenced).
+- [ ] CJK labels are manually wrapped with `<br/>` and within width budgets; subgraph titles are short.
 - [ ] Layout is readable.
 - [ ] Line crossing is minimized.
 - [ ] The visual flow is easy to follow.
+
+### Static/dynamic separation
+- [ ] The static diagram contains no request-path arrows, step numbers, or temporal labels.
+- [ ] When runtime behavior is in scope, a sequence diagram exists and participants map 1:1 to the static diagram's boxes.
+- [ ] Non-callers (data, instruction libraries, plugin capabilities) are drawn as dashed side-attachments, not as callers in the main chain.
 
 ### Communication quality
 - [ ] The diagram can mostly stand on its own.
