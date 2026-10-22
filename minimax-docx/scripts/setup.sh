@@ -269,7 +269,9 @@ build_project() {
     cd "$DOTNET_DIR"
 
     info "Restoring NuGet packages..."
-    if ! dotnet restore --verbosity quiet 2>>"$LOG_FILE"; then
+    # Build the CLI project explicitly: the .slnx solution format requires
+    # .NET 9+, while this skill supports .NET 8.
+    if ! dotnet restore "$DOTNET_DIR/MiniMaxAIDocx.Cli" --verbosity quiet 2>>"$LOG_FILE"; then
         fail "NuGet restore failed. Check network and $LOG_FILE for details."
         fail "Common causes:"
         fail "  - No internet access (NuGet needs to download packages)"
@@ -282,7 +284,7 @@ build_project() {
     log "NuGet packages restored"
 
     info "Building project..."
-    if ! dotnet build --verbosity quiet --no-restore 2>>"$LOG_FILE"; then
+    if ! dotnet build "$DOTNET_DIR/MiniMaxAIDocx.Cli" --verbosity quiet --no-restore 2>>"$LOG_FILE"; then
         fail "Build failed. Check $LOG_FILE for details."
         fail "Try manually: cd $DOTNET_DIR && dotnet build --verbosity normal"
         return 1

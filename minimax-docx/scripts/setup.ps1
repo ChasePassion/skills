@@ -204,7 +204,10 @@ if (-not (Test-Path $DotnetDir)) {
 Push-Location $DotnetDir
 
 Info "Restoring NuGet packages..."
-$restoreResult = & dotnet restore --verbosity quiet 2>&1
+# Build the CLI project explicitly: the .slnx solution format requires .NET 9+,
+# while this skill supports .NET 8.
+$CliProject = Join-Path $DotnetDir "MiniMaxAIDocx.Cli"
+$restoreResult = & dotnet restore $CliProject --verbosity quiet 2>&1
 if ($LASTEXITCODE -ne 0) {
     Fail "NuGet restore failed:"
     $restoreResult | ForEach-Object { Fail "  $_" }
@@ -219,7 +222,7 @@ if ($LASTEXITCODE -ne 0) {
 Log "NuGet packages restored"
 
 Info "Building project..."
-$buildResult = & dotnet build --verbosity quiet --no-restore 2>&1
+$buildResult = & dotnet build $CliProject --verbosity quiet --no-restore 2>&1
 if ($LASTEXITCODE -ne 0) {
     Fail "Build failed:"
     $buildResult | ForEach-Object { Fail "  $_" }
