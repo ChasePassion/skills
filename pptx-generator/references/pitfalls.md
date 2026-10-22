@@ -56,21 +56,25 @@ Check for missing content, placeholder text, missing page number badge.
 - **NEVER use accent lines under titles** — these are a hallmark of AI-generated slides; use whitespace or background color instead
 - **NEVER use "#" with hex colors** — causes file corruption in PptxGenJS
 - **NEVER encode opacity in hex strings** — use the `opacity` property instead
-- **NEVER use async/await in createSlide()** — compile.js won't await
+- **ALWAYS await createSlide() in compile.js** — it may be synchronous or asynchronous
 - **NEVER reuse option objects across PptxGenJS calls** — PptxGenJS mutates objects in-place
 
 ---
 
 ## Critical Pitfalls — PptxGenJS
 
-### NEVER use async/await in createSlide()
+### ALWAYS await createSlide() in compile.js
+
+`createSlide()` may be synchronous or `async` (for example when rendering
+icons with `sharp`). `compile.js` must `await` it, otherwise anything after an
+`await` inside the slide is written too late and silently disappears.
 
 ```javascript
-// WRONG - compile.js won't await
-async function createSlide(pres, theme) { ... }
-
-// CORRECT
-function createSlide(pres, theme) { ... }
+// CORRECT — works for both sync and async createSlide()
+for (const module of slideModules) {
+  await module.createSlide(pres, theme);
+}
+await pres.writeFile({ fileName: outPath });
 ```
 
 ### NEVER use "#" with hex colors

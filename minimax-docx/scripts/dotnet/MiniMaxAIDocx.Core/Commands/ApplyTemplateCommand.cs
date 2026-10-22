@@ -113,13 +113,13 @@ public static class ApplyTemplateCommand
         var templateStyles = template.StyleDefinitionsPart;
         if (templateStyles == null) return;
 
-        if (output.StyleDefinitionsPart != null)
-            output.DeletePart(output.StyleDefinitionsPart);
-
-        var newStylesPart = output.AddNewPart<StyleDefinitionsPart>();
+        // Reuse the existing part so the package keeps the canonical
+        // word/styles.xml name instead of gaining a second styles part.
+        var stylesPart = output.StyleDefinitionsPart
+            ?? output.AddNewPart<StyleDefinitionsPart>();
 
         using var stream = templateStyles.GetStream(FileMode.Open, FileAccess.Read);
-        newStylesPart.FeedData(stream);
+        stylesPart.FeedData(stream);
     }
 
     /// <summary>
@@ -130,13 +130,10 @@ public static class ApplyTemplateCommand
         var templateTheme = template.ThemePart;
         if (templateTheme == null) return;
 
-        if (output.ThemePart != null)
-            output.DeletePart(output.ThemePart);
-
-        var newThemePart = output.AddNewPart<ThemePart>();
+        var themePart = output.ThemePart ?? output.AddNewPart<ThemePart>();
 
         using var stream = templateTheme.GetStream(FileMode.Open, FileAccess.Read);
-        newThemePart.FeedData(stream);
+        themePart.FeedData(stream);
     }
 
     /// <summary>
@@ -160,12 +157,17 @@ public static class ApplyTemplateCommand
         }
 
         if (output.NumberingDefinitionsPart != null)
-            output.DeletePart(output.NumberingDefinitionsPart);
-
-        var newNumberingPart = output.AddNewPart<NumberingDefinitionsPart>();
-
-        using var stream = templateNumbering.GetStream(FileMode.Open, FileAccess.Read);
-        newNumberingPart.FeedData(stream);
+        {
+            var numberingPart = output.NumberingDefinitionsPart;
+            using var stream = templateNumbering.GetStream(FileMode.Open, FileAccess.Read);
+            numberingPart.FeedData(stream);
+        }
+        else
+        {
+            var numberingPart = output.AddNewPart<NumberingDefinitionsPart>();
+            using var stream = templateNumbering.GetStream(FileMode.Open, FileAccess.Read);
+            numberingPart.FeedData(stream);
+        }
 
         if (referencedNumIds.Count > 0)
         {
@@ -304,9 +306,41 @@ public static class ApplyTemplateCommand
 
         CopyChildElement<PageSize>(templateSectPr, outputSectPr);
         CopyChildElement<PageMargin>(templateSectPr, outputSectPr);
+        CopyChildElement<PageBorders>(templateSectPr, outputSectPr);
         CopyChildElement<Columns>(templateSectPr, outputSectPr);
         CopyChildElement<DocGrid>(templateSectPr, outputSectPr);
-        CopyChildElement<PageBorders>(templateSectPr, outputSectPr);
+
+        EnsureSectPrOrder(outputSectPr);
+    }
+
+    // CT_SectPr requires a fixed child order; appending copied elements would
+    // otherwise leave pgBorders after cols/docGrid.
+    private static readonly string[] SectPrOrder =
+    [
+        "headerReference", "footerReference", "footnotePr", "endnotePr", "type",
+        "pgSz", "pgMar", "paperSrc", "pgBorders", "lnNumType", "pgNumType", "cols",
+        "formProt", "vAlign", "noEndnote", "titlePg", "textDirection", "bidi",
+        "rtlGutter", "docGrid", "sectPrChange"
+    ];
+
+    private static void EnsureSectPrOrder(SectionProperties sectPr)
+    {
+        var children = sectPr.ChildElements.ToList();
+        if (children.Count <= 1) return;
+
+        var ordered = children
+            .OrderBy(e =>
+            {
+                var index = Array.IndexOf(SectPrOrder, e.LocalName);
+                return index < 0 ? SectPrOrder.Length : index;
+            })
+            .ToList();
+
+        if (children.SequenceEqual(ordered)) return;
+
+        sectPr.RemoveAllChildren();
+        foreach (var child in ordered)
+            sectPr.Append(child);
     }
 
     private static void CopyChildElement<T>(SectionProperties source, SectionProperties target) where T : OpenXmlElement

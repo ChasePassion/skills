@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<!-- Schema for the XML namespace, reproduced from the W3C recommendation
+     https://www.w3.org/2001/xml.xsd. WordprocessingML documents use
+     xml:space="preserve" on text runs, which schema validation cannot
+     resolve unless this namespace is part of the schema set. -->
+<xs:schema targetNamespace="http://www.w3.org/XML/1998/namespace"
+           xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xml:lang="en">
+
+  <xs:attribute name="lang" type="xs:language"/>
+  <xs:attribute name="space" default="preserve">
+    <xs:simpleType>
+      <xs:restriction base="xs:NCName">
+        <xs:enumeration value="default"/>
+        <xs:enumeration value="preserve"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:attribute>
+  <xs:attribute name="base" type="xs:anyURI"/>
+  <xs:attribute name="id" type="xs:ID"/>
+
+  <xs:attributeGroup name="specialAttrs">
+    <xs:attribute ref="xml:base"/>
+    <xs:attribute ref="xml:lang"/>
+    <xs:attribute ref="xml:space"/>
+    <xs:attribute ref="xml:id"/>
+  </xs:attributeGroup>
+
+</xs:schema>

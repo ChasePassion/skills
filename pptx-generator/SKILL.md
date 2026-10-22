@@ -96,25 +96,38 @@ Create `slides/compile.js` to combine all slide modules:
 
 ```javascript
 // slides/compile.js
+const fs = require('fs');
+const path = require('path');
 const pptxgen = require('pptxgenjs');
-const pres = new pptxgen();
-pres.layout = 'LAYOUT_16x9';
 
-const theme = {
-  primary: "22223b",    // dark color for backgrounds/text
-  secondary: "4a4e69",  // secondary accent
-  accent: "9a8c98",     // highlight color
-  light: "c9ada7",      // light accent
-  bg: "f2e9e4"          // background color
-};
+async function compile() {
+  const pres = new pptxgen();
+  pres.layout = 'LAYOUT_16x9';
 
-for (let i = 1; i <= 12; i++) {  // adjust count as needed
-  const num = String(i).padStart(2, '0');
-  const slideModule = require(`./slide-${num}.js`);
-  slideModule.createSlide(pres, theme);
+  const theme = {
+    primary: "22223b",    // dark color for backgrounds/text
+    secondary: "4a4e69",  // secondary accent
+    accent: "9a8c98",     // highlight color
+    light: "c9ada7",      // light accent
+    bg: "f2e9e4"          // background color
+  };
+
+  for (let i = 1; i <= 12; i++) {  // adjust count as needed
+    const num = String(i).padStart(2, '0');
+    const slideModule = require(`./slide-${num}.js`);
+    // await works for both synchronous and asynchronous createSlide()
+    await slideModule.createSlide(pres, theme);
+  }
+
+  const outDir = path.join(__dirname, 'output');
+  fs.mkdirSync(outDir, { recursive: true });
+  await pres.writeFile({ fileName: path.join(outDir, 'presentation.pptx') });
 }
 
-pres.writeFile({ fileName: './output/presentation.pptx' });
+compile().catch(err => {
+  console.error(err);
+  process.exit(1);
+});
 ```
 
 Run with: `cd slides && node compile.js`
@@ -151,7 +164,8 @@ const slideConfig = {
   title: 'Presentation Title'
 };
 
-// MUST be synchronous (not async)
+// Keep createSlide synchronous unless it needs async work (e.g. icon rendering).
+// compile.js awaits both synchronous and asynchronous implementations.
 function createSlide(pres, theme) {
   const slide = pres.addSlide();
   slide.background = { color: theme.bg };
@@ -167,17 +181,22 @@ function createSlide(pres, theme) {
 
 // Standalone preview - use slide-specific filename
 if (require.main === module) {
-  const pres = new pptxgen();
-  pres.layout = 'LAYOUT_16x9';
-  const theme = {
-    primary: "22223b",
-    secondary: "4a4e69",
-    accent: "9a8c98",
-    light: "c9ada7",
-    bg: "f2e9e4"
-  };
-  createSlide(pres, theme);
-  pres.writeFile({ fileName: "slide-01-preview.pptx" });
+  (async () => {
+    const pres = new pptxgen();
+    pres.layout = 'LAYOUT_16x9';
+    const theme = {
+      primary: "22223b",
+      secondary: "4a4e69",
+      accent: "9a8c98",
+      light: "c9ada7",
+      bg: "f2e9e4"
+    };
+    await createSlide(pres, theme);
+    await pres.writeFile({ fileName: "slide-01-preview.pptx" });
+  })().catch(err => {
+    console.error(err);
+    process.exit(1);
+  });
 }
 
 module.exports = { createSlide, slideConfig };

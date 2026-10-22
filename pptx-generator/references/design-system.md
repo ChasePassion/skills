@@ -101,41 +101,35 @@ Based on the Platinum White-Gold Theme design tokens. Provides complete color sc
 | gray-900 | `#141414` | Very deep background |
 | gray-1000 | `#0a0a0a` | **Primary text (core)** |
 
-#### Opacity Values
+#### Transparency & Opacity (PptxGenJS-safe)
 
-##### Opacity Black
+> **Never** use `#` prefixes or 8-digit hex colors (such as `0a0a0a33`) in
+> PptxGenJS — they corrupt the generated file. Use `fill.transparency`
+> (0-100, where 100 is fully transparent) or `shadow.opacity` (0.0-1.0)
+> instead.
 
-| Opacity | Value | Usage |
-|---------|-------|-------|
-| 0% | `#0a0a0a00` | Fully transparent |
-| 2% | `#0a0a0a05` | Subtle overlay |
-| 4% | `#0a0a0a0a` | Secondary interactive background |
-| 8% | `#0a0a0a14` | Border / divider |
-| 15% | `#0a0a0a26` | Pressed state |
-| 20% | `#0a0a0a33` | Light overlay |
-| 25% | `#0a0a0a40` | Medium overlay |
-| 50% | `#0a0a0a80` | Semi-transparent |
-| 70% | `#0a0a0ab2` | Deep overlay |
-| 80% | `#0a0a0acc` | Hover state |
-| 90% | `#0a0a0ae5` | Tooltip |
-| 95% | `#0a0a0af2` | Modal |
+| Visual opacity | `fill: { transparency }` | `shadow: { opacity }` | Usage |
+|----------------|--------------------------|-----------------------|-------|
+| 0% | `100` | `0.0` | Fully transparent |
+| 5% | `95` | `0.05` | Subtle surface tint |
+| 10% | `90` | `0.10` | Divider / light border |
+| 15% | `85` | `0.15` | Default card shadow |
+| 20% | `80` | `0.20` | Light overlay |
+| 25% | `75` | `0.25` | Medium overlay |
+| 50% | `50` | `0.50` | Semi-transparent overlay |
+| 70% | `30` | `0.70` | Deep overlay |
+| 80% | `20` | `0.80` | High-contrast overlay |
+| 90% | `10` | `0.90` | Tooltip |
+| 95% | `5` | `0.95` | Modal |
 
-##### Opacity White
-
-| Opacity | Value | Usage |
-|---------|-------|-------|
-| 0% | `#ffffff00` | Fully transparent |
-| 2% | `#ffffff05` | Subtle overlay |
-| 4% | `#ffffff0a` | Secondary interactive background |
-| 8% | `#ffffff12` | Border / divider |
-| 15% | `#ffffff26` | Pressed state |
-| 20% | `#ffffff33` | Light overlay |
-| 25% | `#ffffff40` | Medium overlay |
-| 50% | `#ffffff80` | Semi-transparent |
-| 70% | `#ffffffb2` | Deep overlay |
-| 80% | `#ffffffcc` | Hover state |
-| 90% | `#ffffffe5` | Tooltip |
-| 95% | `#fffffff2` | Modal |
+```javascript
+// On light and dark backgrounds alike, keep the base color opaque and
+// express the alpha channel through the API:
+slide.addShape(pres.shapes.RECTANGLE, {
+  x: 0, y: 0, w: 10, h: 5.625,
+  fill: { color: "0A0A0A", transparency: 80 }   // 20% opaque
+});
+```
 
 ---
 
@@ -302,26 +296,28 @@ The same design can be rendered in 4 distinct visual styles by adjusting corner 
 
 ```javascript
 // Sharp style card
-slide.addShape("rect", {
+slide.addShape(pres.shapes.ROUNDED_RECTANGLE, {
   x: 0.5, y: 1, w: 4, h: 2.5,
   fill: { color: "F5F5F5" },
   rectRadius: 0.03
 });
 
 // Rounded style card
-slide.addShape("rect", {
+slide.addShape(pres.shapes.ROUNDED_RECTANGLE, {
   x: 0.5, y: 1, w: 4, h: 2.5,
   fill: { color: "F5F5F5" },
   rectRadius: 0.2
 });
 
 // Pill style button (height 0.4", rectRadius 0.2" = perfect pill)
-slide.addShape("rect", {
+slide.addShape(pres.shapes.ROUNDED_RECTANGLE, {
   x: 3, y: 4, w: 2, h: 0.4,
   fill: { color: "4A90D9" },
   rectRadius: 0.2
 });
 ```
+
+> `rectRadius` is ignored on plain `RECTANGLE`; use `ROUNDED_RECTANGLE`.
 
 ### Mixing Rules
 

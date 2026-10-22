@@ -9,7 +9,7 @@
            targetNamespace="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
            elementFormDefault="qualified">
 
-  <xs:import namespace="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>
+  <xs:import namespace="http://schemas.openxmlformats.org/officeDocument/2006/relationships" schemaLocation="relationships.xsd"/>
   <xs:import namespace="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"/>
 
   <!-- ============================================================ -->

@@ -9,19 +9,21 @@ public static class ValidateCommand
     public static Command Create()
     {
         var inputOption = new Option<string>("--input") { Description = "DOCX file to validate", Required = true };
-        var xsdOption = new Option<string>("--xsd") { Description = "XSD schema path for XML validation" };
+        var openXmlOption = new Option<bool>("--openxml") { Description = "Validate against the OpenXML SDK schema (recommended)" };
+        var xsdOption = new Option<string>("--xsd") { Description = "Custom XSD schema path (advanced)" };
         var businessOption = new Option<bool>("--business") { Description = "Run business rule validation" };
-        var gateCheckOption = new Option<string>("--gate-check") { Description = "Template DOCX for gate-check validation" };
+        var gateCheckOption = new Option<string>("--gate-check") { Description = "Template DOCX to compare styles, sections, and fonts against" };
         var jsonOption = new Option<bool>("--json") { Description = "Output results as JSON" };
 
         var cmd = new Command("validate", "Validate DOCX structure and content")
         {
-            inputOption, xsdOption, businessOption, gateCheckOption, jsonOption
+            inputOption, openXmlOption, xsdOption, businessOption, gateCheckOption, jsonOption
         };
 
         cmd.SetAction((parseResult) =>
         {
             var input = parseResult.GetValue(inputOption)!;
+            var openXml = parseResult.GetValue(openXmlOption);
             var xsd = parseResult.GetValue(xsdOption);
             var business = parseResult.GetValue(businessOption);
             var gateCheck = parseResult.GetValue(gateCheckOption);
@@ -35,6 +37,12 @@ public static class ValidateCommand
 
             var combinedResult = new ValidationResult();
             GateCheckResult? gateResult = null;
+
+            if (openXml)
+            {
+                var schemaValidator = new OpenXmlSchemaValidator();
+                combinedResult.Merge(schemaValidator.Validate(input));
+            }
 
             if (xsd != null)
             {

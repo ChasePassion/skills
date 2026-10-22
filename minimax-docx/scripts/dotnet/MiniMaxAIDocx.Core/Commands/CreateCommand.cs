@@ -65,18 +65,6 @@ public static class CreateCommand
 
             // Add section properties (page size, margins)
             var sectPr = new SectionProperties();
-            sectPr.Append(new DocumentFormat.OpenXml.Wordprocessing.PageSize
-            {
-                Width = (UInt32Value)(uint)pageSize.WidthDxa,
-                Height = (UInt32Value)(uint)pageSize.HeightDxa
-            });
-            sectPr.Append(new PageMargin
-            {
-                Top = margins.TopDxa,
-                Bottom = margins.BottomDxa,
-                Left = (UInt32Value)(uint)margins.LeftDxa,
-                Right = (UInt32Value)(uint)margins.RightDxa
-            });
 
             // Add header if requested
             if (!string.IsNullOrEmpty(headerText))
@@ -124,6 +112,21 @@ public static class CreateCommand
                     Id = footerRefId
                 });
             }
+
+            // Page size and margins come after header/footer references,
+            // matching the CT_SectPr child order required by ISO 29500.
+            sectPr.Append(new DocumentFormat.OpenXml.Wordprocessing.PageSize
+            {
+                Width = (UInt32Value)(uint)pageSize.WidthDxa,
+                Height = (UInt32Value)(uint)pageSize.HeightDxa
+            });
+            sectPr.Append(new PageMargin
+            {
+                Top = margins.TopDxa,
+                Bottom = margins.BottomDxa,
+                Left = (UInt32Value)(uint)margins.LeftDxa,
+                Right = (UInt32Value)(uint)margins.RightDxa
+            });
 
             // Title
             if (!string.IsNullOrEmpty(title))
@@ -245,9 +248,9 @@ public static class CreateCommand
                     new OutlineLevel { Val = i }),
                 new StyleRunProperties(
                     new RunFonts { Ascii = fontConfig.HeadingFont, HighAnsi = fontConfig.HeadingFont },
+                    new Bold(),
                     new FontSize { Val = UnitConverter.FontSizeToSz(headingSizes[i]) },
-                    new FontSizeComplexScript { Val = UnitConverter.FontSizeToSz(headingSizes[i]) },
-                    new Bold()))
+                    new FontSizeComplexScript { Val = UnitConverter.FontSizeToSz(headingSizes[i]) }))
             { Type = StyleValues.Paragraph, StyleId = $"Heading{level}" };
             styles.Append(headingStyle);
         }
@@ -259,8 +262,8 @@ public static class CreateCommand
             new NextParagraphStyle { Val = "Normal" },
             new PrimaryStyle(),
             new StyleParagraphProperties(
-                new Justification { Val = JustificationValues.Center },
-                new SpacingBetweenLines { After = "300" }),
+                new SpacingBetweenLines { After = "300" },
+                new Justification { Val = JustificationValues.Center }),
             new StyleRunProperties(
                 new RunFonts { Ascii = fontConfig.HeadingFont, HighAnsi = fontConfig.HeadingFont },
                 new FontSize { Val = UnitConverter.FontSizeToSz(fontConfig.Heading1Size + 6) },
@@ -273,12 +276,27 @@ public static class CreateCommand
             new BasedOn { Val = "Normal" },
             new NextParagraphStyle { Val = "Normal" },
             new StyleParagraphProperties(
-                new Justification { Val = JustificationValues.Center },
-                new SpacingBetweenLines { After = "200" }),
+                new SpacingBetweenLines { After = "200" },
+                new Justification { Val = JustificationValues.Center }),
             new StyleRunProperties(
                 new Color { Val = "5A5A5A" },
                 new FontSize { Val = UnitConverter.FontSizeToSz(fontConfig.BodySize + 2) }))
         { Type = StyleValues.Paragraph, StyleId = "Subtitle" });
+
+        // TOC heading style referenced by --toc
+        styles.Append(new Style(
+            new StyleName { Val = "TOC Heading" },
+            new BasedOn { Val = "Normal" },
+            new NextParagraphStyle { Val = "Normal" },
+            new StyleParagraphProperties(
+                new KeepNext(),
+                new SpacingBetweenLines { Before = "240", After = "120" }),
+            new StyleRunProperties(
+                new RunFonts { Ascii = fontConfig.HeadingFont, HighAnsi = fontConfig.HeadingFont },
+                new Bold(),
+                new FontSize { Val = UnitConverter.FontSizeToSz(fontConfig.Heading1Size) },
+                new FontSizeComplexScript { Val = UnitConverter.FontSizeToSz(fontConfig.Heading1Size) }))
+        { Type = StyleValues.Paragraph, StyleId = "TOCHeading" });
 
         stylesPart.Styles = styles;
         stylesPart.Styles.Save();
@@ -291,15 +309,25 @@ public static class CreateCommand
         try
         {
             using var jsonDoc = System.Text.Json.JsonDocument.Parse(jsonContent);
+            if (jsonDoc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Array)
+            {
+                Console.Error.WriteLine("Warning: content JSON must be an array of {type, text} objects.");
+                return;
+            }
+
             foreach (var element in jsonDoc.RootElement.EnumerateArray())
             {
-                var type = element.GetProperty("type").GetString() ?? "paragraph";
-                var text = element.GetProperty("text").GetString() ?? "";
+                var type = element.TryGetProperty("type", out var typeProp) && typeProp.ValueKind == System.Text.Json.JsonValueKind.String
+                    ? typeProp.GetString() ?? "paragraph"
+                    : "paragraph";
+                var text = element.TryGetProperty("text", out var textProp) && textProp.ValueKind == System.Text.Json.JsonValueKind.String
+                    ? textProp.GetString() ?? ""
+                    : "";
 
                 switch (type)
                 {
                     case "heading":
-                        var level = element.TryGetProperty("level", out var lvl) ? lvl.GetInt32() : 1;
+                        var level = element.TryGetProperty("level", out var lvl) && lvl.TryGetInt32(out var parsedLevel) ? parsedLevel : 1;
                         level = Math.Clamp(level, 1, 6);
                         body.Append(new Paragraph(
                             new ParagraphProperties(new ParagraphStyleId { Val = $"Heading{level}" }),

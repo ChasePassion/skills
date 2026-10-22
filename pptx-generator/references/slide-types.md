@@ -32,10 +32,10 @@ Classify **every slide** as **exactly one** of these 5 types:
 
 | Element | Recommended Size | Ratio to Base |
 |---------|-----------------|---------------|
-| Main Title | 72-120px | 3x-5x |
-| Subtitle | 28-40px | 1.5x-2x |
-| Supporting Text | 18-24px | 1x (base) |
-| Meta Info (date, name) | 14-18px | 0.7x-1x |
+| Main Title | 72-120pt | 3x-5x |
+| Subtitle | 28-40pt | 1.5x-2x |
+| Supporting Text | 18-24pt | 1x (base) |
+| Meta Info (date, name) | 14-18pt | 0.7x-1x |
 
 **Key Principles:**
 1. **Dramatic Contrast**: Main title should be at least 2-3x larger than subtitle
@@ -110,10 +110,10 @@ Consider: Purpose (corporate/educational/creative), Audience, Tone, Content Volu
 
 | Element | Recommended Size | Ratio to Base |
 |---------|-----------------|---------------|
-| Page Title ("Table of Contents" / "Agenda") | 36-44px | 2.5x-3x |
-| Section Number | 28-36px | 2x-2.5x |
-| Section Title | 20-28px | 1.5x-2x |
-| Section Description | 14-16px | 1x (base) |
+| Page Title ("Table of Contents" / "Agenda") | 36-44pt | 2.5x-3x |
+| Section Number | 28-36pt | 2x-2.5x |
+| Section Title | 20-28pt | 1.5x-2x |
+| Section Description | 14-16pt | 1x (base) |
 
 **Key Principles:**
 1. **Clear Numbering**: Section numbers should be visually prominent — bold, accent color, or larger size
@@ -189,9 +189,9 @@ Consider: Purpose (corporate/educational/creative), Audience, Tone, Content Volu
 
 | Element | Recommended Size | Notes |
 |---------|-----------------|-------|
-| Section Number | 72-120px | Bold, accent color or semi-transparent |
-| Section Title | 36-48px | Bold, clear, primary text color |
-| Intro Text | 16-20px | Light weight, muted color, optional |
+| Section Number | 72-120pt | Bold, accent color or semi-transparent |
+| Section Title | 36-48pt | Bold, clear, primary text color |
+| Intro Text | 16-20pt | Light weight, muted color, optional |
 
 **Key Principles:**
 1. **Dramatic Number**: Section number = most prominent visual element
@@ -282,11 +282,11 @@ Pick a subtype based on the content. Each content slide belongs to exactly ONE s
 
 | Element | Recommended Size | Notes |
 |---------|-----------------|-------|
-| Slide Title | 36-44px | Bold, top of slide |
-| Section Header | 20-24px | Bold, for sub-sections within slide |
-| Body Text | 14-16px | Regular weight, left-aligned |
-| Captions / Source | 10-12px | Muted color, smallest text |
-| Stat Callout | 60-72px | Large bold numbers for key statistics |
+| Slide Title | 36-44pt | Bold, top of slide |
+| Section Header | 20-24pt | Bold, for sub-sections within slide |
+| Body Text | 14-16pt | Regular weight, left-aligned |
+| Captions / Source | 10-12pt | Muted color, smallest text |
+| Stat Callout | 60-72pt | Large bold numbers for key statistics |
 
 **Key Principles:**
 1. **Left-align body text** — never center paragraphs or bullet lists
@@ -361,10 +361,10 @@ Pick a subtype based on the content. Each content slide belongs to exactly ONE s
 
 | Element | Recommended Size | Notes |
 |---------|-----------------|-------|
-| Closing Title ("Thank You" / "Summary") | 48-72px | Bold, commanding |
-| Takeaway / Action Item | 18-24px | Clear, scannable |
-| Supporting Text | 14-16px | Regular weight |
-| Contact Info | 14-16px | Muted color |
+| Closing Title ("Thank You" / "Summary") | 48-72pt | Bold, commanding |
+| Takeaway / Action Item | 18-24pt | Clear, scannable |
+| Supporting Text | 14-16pt | Regular weight |
+| Contact Info | 14-16pt | Muted color |
 
 **Key Principles:**
 1. **Strong closing statement**: Main message should be largest, most prominent

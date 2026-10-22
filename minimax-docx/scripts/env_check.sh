@@ -90,6 +90,15 @@ else
     STATUS="NOT READY"
 fi
 
+# --- Optional: dotnet-script (direct C# path) ---
+if dotnet tool list -g 2>/dev/null | grep -qi "dotnet-script"; then
+    printf "[OK]      %-14s installed (C# script path)\n" "dotnet-script"
+else
+    printf "[WARN]    %-14s not found — direct C# path unavailable\n" "dotnet-script"
+    echo "           Install: dotnet tool install -g dotnet-script"
+    WARNINGS=$((WARNINGS + 1))
+fi
+
 # --- Optional: pandoc ---
 if command -v pandoc &>/dev/null; then
     pandoc_ver=$(pandoc --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1 || echo "?")

@@ -13,7 +13,7 @@ metadata:
 description: >
   Professional DOCX document creation, editing, and formatting using OpenXML SDK (.NET).
   Three pipelines: (A) create new documents from scratch, (B) fill/edit content in existing
-  documents, (C) apply template formatting with XSD validation gate-check.
+  documents, (C) apply template formatting with a hard delivery gate-check.
   MUST use this skill whenever the user wants to produce, modify, or format a Word document —
   including when they say "write a report", "draft a proposal", "make a contract",
   "fill in this form", "reformat to match this template", or any task whose final output
@@ -47,22 +47,28 @@ Create, edit, and format DOCX documents via CLI tools or direct C# scripts built
 When the task requires structural document manipulation (custom styles, complex tables, multi-section layouts, headers/footers, TOC, images), write C# directly instead of wrestling with CLI limitations. Use this scaffold:
 
 ```csharp
-// File: scripts/dotnet/task.csx  (or a new .cs in a Console project)
-// dotnet run --project scripts/dotnet/MiniMaxAIDocx.Cli -- run-script task.csx
+// File: task.csx — run with: dotnet script task.csx
+// dotnet-script 2.x parses top-level `using var` as a using directive, so
+// declare the document with an explicit type and dispose it explicitly.
 #r "nuget: DocumentFormat.OpenXml, 3.2.0"
 
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 
-using var doc = WordprocessingDocument.Create("output.docx", WordprocessingDocumentType.Document);
-var mainPart = doc.AddMainDocumentPart();
+WordprocessingDocument doc = WordprocessingDocument.Create("output.docx", WordprocessingDocumentType.Document);
+MainDocumentPart mainPart = doc.AddMainDocumentPart();
 mainPart.Document = new Document(new Body());
 
 // --- Your logic here ---
 // Read the relevant Samples/*.cs file FIRST for tested patterns.
 // See Samples/ table in References section below.
+
+mainPart.Document.Save();
+doc.Dispose();
 ```
+
+`dotnet script` comes from the `dotnet-script` global tool. If it is missing: `dotnet tool install -g dotnet-script`.
 
 **Before writing any C#, read the relevant `Samples/*.cs` file** — they contain compilable, SDK-version-verified patterns. The Samples table in the References section below maps topics to files.
 
@@ -116,6 +122,10 @@ Read `references/scenario_a_create.md`, `references/typography_guide.md`, and `r
 
 CLI options: `--type` (report|letter|memo|academic), `--title`, `--author`, `--page-size` (letter|a4|legal|a3), `--margins` (standard|narrow|wide), `--header`, `--footer`, `--page-numbers`, `--toc`, `--content-json`.
 
+`--content-json` takes a flat JSON **array** of blocks; supported types are
+`heading` (`text`, `level` 1-6), `paragraph` (`text`), and `pagebreak`
+(`{"type":"pagebreak"}`). Tables, images, and lists require the direct C# path.
+
 Then run the **validation pipeline** (below).
 
 ## Scenario B: Edit / Fill
@@ -126,15 +136,17 @@ Read `references/scenario_b_edit_content.md` first. Preview → analyze → edit
 - **Simple** (text replacement, placeholder fill): use CLI subcommands.
 - **Structural** (add/reorganize sections, modify styles, manipulate tables, insert images): write C# directly. Read `references/openxml_element_order.md` and the relevant `Samples/*.cs`.
 
-Available CLI edit subcommands:
-- `replace-text --find "X" --replace "Y"`
-- `fill-placeholders --data '{"key":"value"}'`
-- `fill-table --data table.json`
-- `insert-section`, `remove-section`, `update-header-footer`
+Available CLI edit subcommands (run `$CLI edit --help` for the full list):
+- `replace-text --search "OLD" --replace "NEW"` (`--regex` makes the search a pattern)
+- `fill-placeholders --mapping mapping.json` (JSON object of name → value; placeholders default to `{{name}}`)
+- `list-placeholders`
+- `fill-table --csv table.csv --table-index 0`
+- `insert-paragraph`
+- `update-field`
 
 ```bash
-$CLI edit replace-text --input in.docx --output out.docx --find "OLD" --replace "NEW"
-$CLI edit fill-placeholders --input in.docx --output out.docx --data '{"name":"John"}'
+$CLI edit replace-text --input in.docx --output out.docx --search "OLD" --replace "NEW"
+$CLI edit fill-placeholders --input in.docx --output out.docx --mapping mapping.json
 ```
 
 Then run the **validation pipeline**. Also run diff to verify minimal changes:
@@ -154,9 +166,9 @@ For complex template operations (multi-template merge, per-section headers/foote
 
 Run the **validation pipeline**, then the **hard gate-check**:
 ```bash
-$CLI validate --input out.docx --gate-check assets/xsd/business-rules.xsd
+$CLI validate --input out.docx --gate-check template.docx
 ```
-Gate-check is a **hard requirement**. Do NOT deliver until it passes. If it fails: diagnose, fix, re-run.
+`--gate-check` takes the **template DOCX**, not an XSD file: it compares the output's style set, page size, margins, and default font against the template. Gate-check is a **hard requirement**. Do NOT deliver until it passes. If it fails: diagnose, fix, re-run.
 
 Also diff to verify content preservation: `$CLI diff --before source.docx --after out.docx`
 
@@ -165,18 +177,18 @@ Also diff to verify content preservation: `$CLI diff --before source.docx --afte
 Run after every write operation. For Scenario C the full pipeline is **mandatory**; for A/B it is **recommended** (skip only if the operation was trivially simple).
 
 ```bash
-$CLI merge-runs --input doc.docx                                    # 1. consolidate runs
-$CLI validate --input doc.docx --xsd assets/xsd/wml-subset.xsd     # 2. XSD structure
-$CLI validate --input doc.docx --business                           # 3. business rules
+$CLI merge-runs --input doc.docx            # 1. consolidate runs
+$CLI validate --input doc.docx --openxml    # 2. OpenXML structure (recommended)
+$CLI validate --input doc.docx --business   # 3. business rules
 ```
 
-If XSD fails, auto-repair and retry:
+If the structure check fails, auto-repair and retry:
 ```bash
 $CLI fix-order --input doc.docx
-$CLI validate --input doc.docx --xsd assets/xsd/wml-subset.xsd
+$CLI validate --input doc.docx --openxml
 ```
 
-If XSD still fails, fall back to business rules + preview:
+If it still fails, fall back to business rules + preview:
 ```bash
 $CLI validate --input doc.docx --business
 scripts/docx_preview.sh doc.docx

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Minimal schema for the OOXML relationships namespace.
+     The WML subset schema references r:id on hyperlinks, images, and
+     header/footer references; .NET's XmlSchemaSet cannot resolve the
+     relationship namespace on its own, so the attributes used by
+     wml-subset.xsd are declared here. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+           targetNamespace="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+           attributeFormDefault="qualified">
+
+  <xs:attribute name="id" type="xs:ID"/>
+  <xs:attribute name="embed" type="xs:ID"/>
+  <xs:attribute name="link" type="xs:ID"/>
+</xs:schema>

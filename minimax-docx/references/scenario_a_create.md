@@ -91,8 +91,8 @@ See the Complex Elements Guide section below.
 ### 8. Run Validation Pipeline
 
 ```
-dotnet run ... validate --xsd wml-subset.xsd
-dotnet run ... validate --xsd business-rules.xsd   # if applying a template
+dotnet run ... validate --input out.docx --openxml
+dotnet run ... validate --input out.docx --business
 ```
 
 ---
@@ -144,51 +144,30 @@ dotnet run ... validate --xsd business-rules.xsd   # if applying a template
 
 ## Content Configuration JSON Format
 
-The CLI `create` command accepts a JSON config:
+`--content-json` accepts a JSON **array** of blocks (not an object). Supported
+block types:
+
+| type | fields | Behavior |
+|------|--------|----------|
+| `heading` | `text`, `level` (1-6) | Paragraph using `HeadingN` |
+| `paragraph` | `text` | Paragraph using `Normal` |
+| `pagebreak` | — | Inserts a page break |
 
 ```json
-{
-  "type": "report",
-  "title": "Quarterly Revenue Analysis",
-  "subtitle": "Q1 2026",
-  "author": "Finance Team",
-  "pageSize": "A4",
-  "margins": { "top": 1440, "right": 1440, "bottom": 1440, "left": 1440 },
-  "sections": [
-    {
-      "heading": "Executive Summary",
-      "level": 1,
-      "content": [
-        { "type": "paragraph", "text": "Revenue grew 12% year-over-year..." },
-        {
-          "type": "table",
-          "headers": ["Region", "Revenue", "Growth"],
-          "rows": [
-            ["North America", "$4.2M", "+15%"],
-            ["Europe", "$2.8M", "+8%"],
-            ["Asia Pacific", "$1.9M", "+18%"]
-          ]
-        },
-        { "type": "image", "path": "charts/revenue.png", "width": "5in", "alt": "Revenue chart" }
-      ]
-    },
-    {
-      "heading": "Detailed Analysis",
-      "level": 1,
-      "content": [
-        { "type": "paragraph", "text": "Breaking down by product line..." }
-      ]
-    }
-  ]
-}
+[
+  { "type": "heading", "text": "Executive Summary", "level": 1 },
+  { "type": "paragraph", "text": "Revenue grew 12% year-over-year." },
+  { "type": "pagebreak" },
+  { "type": "heading", "text": "Detailed Analysis", "level": 1 },
+  { "type": "paragraph", "text": "Breaking down by product line..." }
+]
 ```
 
-Supported content types:
-- `paragraph` — body text (applies Normal style)
-- `table` — headers + rows (applies TableGrid style)
-- `image` — inline image with width/height control
-- `list` — bulleted or numbered list items
-- `pageBreak` — forces a page break
+`text` may be omitted for blocks that carry no text, such as `pagebreak`.
+
+Tables, images, and lists are **not** supported by `--content-json`. Use the
+direct C# path for those (see `Samples/TableSamples.cs`,
+`Samples/ImageSamples.cs`, and `Samples/ListAndNumberingSamples.cs`).
 
 ---
 

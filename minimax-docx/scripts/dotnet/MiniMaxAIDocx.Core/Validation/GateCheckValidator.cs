@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Xml.Linq;
+using MiniMaxAIDocx.Core.OpenXml;
 
 namespace MiniMaxAIDocx.Core.Validation;
 
@@ -57,7 +58,7 @@ public class GateCheckValidator
     private HashSet<string> ExtractStyles(string docxPath)
     {
         using var zip = ZipFile.OpenRead(docxPath);
-        var entry = zip.GetEntry("word/styles.xml");
+        var entry = PackageParts.GetStylesEntry(zip);
         if (entry == null) return new();
 
         using var stream = entry.Open();
@@ -101,7 +102,7 @@ public class GateCheckValidator
     private string? ExtractDefaultFont(string docxPath)
     {
         using var zip = ZipFile.OpenRead(docxPath);
-        var entry = zip.GetEntry("word/styles.xml");
+        var entry = PackageParts.GetStylesEntry(zip);
         if (entry == null) return null;
 
         using var stream = entry.Open();
@@ -117,7 +118,7 @@ public class GateCheckValidator
     private void ValidateHeadingFontHierarchy(string docxPath, GateCheckResult result)
     {
         using var zip = ZipFile.OpenRead(docxPath);
-        var entry = zip.GetEntry("word/styles.xml");
+        var entry = PackageParts.GetStylesEntry(zip);
         if (entry == null) return;
 
         using var stream = entry.Open();

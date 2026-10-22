@@ -6,6 +6,15 @@ namespace MiniMaxAIDocx.Core.Validation;
 
 public class XsdValidator
 {
+    // The WML subset schema references two foreign namespaces that .NET does
+    // not ship: relationships (r:id) and XML (xml:space). They are added to
+    // the schema set explicitly so validation also works without a resolver.
+    private static readonly (string Namespace, string FileName)[] CompanionSchemas =
+    [
+        ("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "relationships.xsd"),
+        ("http://www.w3.org/XML/1998/namespace", "xml.xsd"),
+    ];
+
     public ValidationResult Validate(string docxPath, string xsdPath)
     {
         using var zip = ZipFile.OpenRead(docxPath);
@@ -25,7 +34,35 @@ public class XsdValidator
         var settings = new XmlReaderSettings();
 
         var schemaSet = new XmlSchemaSet();
-        schemaSet.Add(null, xsdPath);
+
+        try
+        {
+            var schemaDir = Path.GetDirectoryName(Path.GetFullPath(xsdPath));
+            if (!string.IsNullOrEmpty(schemaDir))
+            {
+                foreach (var (ns, fileName) in CompanionSchemas)
+                {
+                    var companionPath = Path.Combine(schemaDir, fileName);
+                    if (File.Exists(companionPath))
+                        schemaSet.Add(ns, companionPath);
+                }
+            }
+
+            schemaSet.Add(null, xsdPath);
+            schemaSet.Compile();
+        }
+        catch (XmlSchemaException ex)
+        {
+            result.Errors.Add(new ValidationError
+            {
+                LineNumber = ex.LineNumber,
+                LinePosition = ex.LinePosition,
+                Message = $"XSD schema error: {ex.Message}",
+                Severity = "Error"
+            });
+            return result;
+        }
+
         settings.Schemas = schemaSet;
         settings.ValidationType = ValidationType.Schema;
         settings.ValidationFlags |= XmlSchemaValidationFlags.ReportValidationWarnings;

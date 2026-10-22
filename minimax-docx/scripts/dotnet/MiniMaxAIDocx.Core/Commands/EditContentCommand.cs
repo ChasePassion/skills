@@ -383,8 +383,7 @@ public static class EditContentCommand
                     if (textElement.Text.Contains(search))
                     {
                         var newText = textElement.Text.Replace(search, replace);
-                        count += (textElement.Text.Length - newText.Length + replace.Length - search.Length) == 0 ? 0 :
-                                 CountOccurrences(textElement.Text, search);
+                        count += CountOccurrences(textElement.Text, search);
                         textElement.Text = newText;
                         if (newText.StartsWith(' ') || newText.EndsWith(' '))
                             textElement.Space = SpaceProcessingModeValues.Preserve;

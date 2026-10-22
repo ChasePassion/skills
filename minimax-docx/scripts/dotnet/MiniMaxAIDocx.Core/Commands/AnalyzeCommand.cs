@@ -2,6 +2,7 @@ using System.CommandLine;
 using System.IO.Compression;
 using System.Text.Json;
 using System.Xml.Linq;
+using MiniMaxAIDocx.Core.OpenXml;
 
 namespace MiniMaxAIDocx.Core.Commands;
 
@@ -90,7 +91,7 @@ public static class AnalyzeCommand
 
             // Styles
             var styleNames = new List<string>();
-            var stylesEntry = zip.GetEntry("word/styles.xml");
+            var stylesEntry = PackageParts.GetStylesEntry(zip);
             if (stylesEntry != null)
             {
                 using var stream = stylesEntry.Open();

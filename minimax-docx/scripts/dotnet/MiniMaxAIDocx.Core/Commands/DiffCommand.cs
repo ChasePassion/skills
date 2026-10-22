@@ -2,6 +2,7 @@ using System.CommandLine;
 using System.IO.Compression;
 using System.Text.Json;
 using System.Xml.Linq;
+using MiniMaxAIDocx.Core.OpenXml;
 
 namespace MiniMaxAIDocx.Core.Commands;
 
@@ -125,7 +126,7 @@ public static class DiffCommand
     private static HashSet<string> ExtractStyleIds(string docxPath)
     {
         using var zip = ZipFile.OpenRead(docxPath);
-        var entry = zip.GetEntry("word/styles.xml");
+        var entry = PackageParts.GetStylesEntry(zip);
         if (entry == null) return new();
 
         using var stream = entry.Open();

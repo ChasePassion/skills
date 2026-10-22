@@ -19,9 +19,9 @@ Do NOT use when: the user wants to edit content (→ Scenario B) or create from 
 2. Analyze template  → CLI: analyze template.docx     (list styles, fonts, structure)
 3. Map styles        → Create mapping plan (source style → template style)
 4. Apply template    → CLI: apply-template source.docx --template template.docx --output result.docx
-5. Validate (XSD)    → CLI: validate result.docx --xsd wml-subset.xsd
-6. GATE-CHECK        → CLI: validate result.docx --xsd business-rules.xsd   ← MUST PASS
-7. Diff verify       → CLI: diff source.docx result.docx --text-only   (content must be identical)
+5. Validate (structure) → CLI: validate result.docx --openxml --business
+6. GATE-CHECK        → CLI: validate result.docx --gate-check template.docx   ← MUST PASS
+7. Diff verify       → CLI: diff --before source.docx --after result.docx   (content must be identical)
 ```
 
 ---
@@ -358,36 +358,44 @@ The corresponding text in document.xml references this rId:
 
 ---
 
-## XSD Gate-Check
+## Gate-Check
 
 ### What It Is
 
-After template application, the output document **MUST** pass `business-rules.xsd` validation. This is a **hard gate** — if it fails, the document is **NOT deliverable**.
+After template application, the output document **MUST** pass the gate-check
+against the template. This is a **hard gate** — if it fails, the document is
+**NOT deliverable**.
 
-### What business-rules.xsd Checks
+```bash
+$CLI validate --input output.docx --gate-check template.docx
+```
+
+`--gate-check` takes the template DOCX (not an XSD file). It compares the
+output against the template.
+
+### What the Gate-Check Verifies
 
 | Rule | What It Validates |
 |------|-------------------|
-| Template styles exist | All styles referenced by content paragraphs are defined in `styles.xml` |
-| Margins match | Page margins match template specification |
-| Fonts correct | `w:docDefaults` fonts match template's font scheme |
-| Heading hierarchy | Heading levels are sequential (no H1 → H3 without H2) |
-| Required styles present | `Normal`, `Heading1`-`Heading3`, `TableGrid` exist |
-| Page size | Matches template's declared page size |
+| Template styles exist | Every style defined in the template exists in the output |
+| Margins match | Page margins match the template's section properties |
+| Page size | Page width and height match the template |
+| Default font | The default paragraph style uses the template's font |
+| Heading hierarchy | Heading font sizes do not invert between levels |
 
 ### Handling Failures
 
 ```
-GATE-CHECK FAILED:
-  - Style 'CustomStyle1' referenced in paragraph 14 but not defined in styles.xml
-  - Margin w:left=1080 does not match template requirement 1440
+GATE CHECK: FAILED
+  - Missing style: 'Heading1' defined in template but absent from output
+  - Page margins mismatch: template=(1440,1440,1440,1440) output=(1080,1080,1080,1080)
 ```
 
 Fix each failure:
-1. **Missing style**: Add the style definition to `styles.xml`, or remap the paragraph to an existing style
+1. **Missing style**: Re-run `apply-template` (it replaces the styles part), or add the style definition
 2. **Margin mismatch**: Update `w:sectPr` margins to match template
 3. **Font mismatch**: Update `w:docDefaults` to match template font scheme
-4. **Heading hierarchy gap**: Insert intermediate heading levels or adjust existing levels
+4. **Heading hierarchy gap**: Adjust heading sizes so H1 > H2 > H3
 
 Re-validate after every fix until gate-check passes.
 

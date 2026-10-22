@@ -93,28 +93,27 @@ public static class MergeRunsCommand
                 mergedCount += runs.Count;
             }
 
-            if (dryRun)
+            if (!dryRun)
             {
-                Console.WriteLine($"Original runs: {originalCount}");
-                Console.WriteLine($"After merge:   {mergedCount}");
-                Console.WriteLine($"Reduction:     {(originalCount > 0 ? (originalCount - mergedCount) * 100.0 / originalCount : 0):F1}%");
-                File.Delete(tempPath);
-                return;
+                entry.Delete();
+                var newEntry = zip.CreateEntry("word/document.xml", CompressionLevel.Optimal);
+                using (var stream = newEntry.Open())
+                    doc.Save(stream);
             }
 
-            entry.Delete();
-            var newEntry = zip.CreateEntry("word/document.xml", CompressionLevel.Optimal);
-            using (var stream = newEntry.Open())
-                doc.Save(stream);
-
+            // The archive must be closed before the temporary file can be
+            // removed or copied on Windows.
             zip.Dispose();
-            File.Copy(tempPath, output, true);
+
+            if (!dryRun)
+                File.Copy(tempPath, output, true);
             File.Delete(tempPath);
 
             Console.WriteLine($"Original runs: {originalCount}");
             Console.WriteLine($"After merge:   {mergedCount}");
             Console.WriteLine($"Reduction:     {(originalCount > 0 ? (originalCount - mergedCount) * 100.0 / originalCount : 0):F1}%");
-            Console.WriteLine($"Written to:    {output}");
+            if (!dryRun)
+                Console.WriteLine($"Written to:    {output}");
         });
 
         return cmd;

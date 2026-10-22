@@ -54,7 +54,7 @@ The CLI natively supports `{{fieldName}}` placeholders:
 
 ```bash
 # Replace all {{placeholders}} from a JSON map
-dotnet run ... edit input.docx --fill-placeholders data.json --output filled.docx
+dotnet run ... edit fill-placeholders --input input.docx --mapping data.json --output filled.docx
 ```
 
 Where `data.json`:
@@ -69,7 +69,7 @@ Where `data.json`:
 
 Other placeholder formats (`$FIELD$`, `[PLACEHOLDER]`) require text replacement:
 ```bash
-dotnet run ... edit input.docx --replace "$DATE$" "March 21, 2026" --output updated.docx
+dotnet run ... edit replace-text --input input.docx --search "$DATE$" --replace "March 21, 2026" --output updated.docx
 ```
 
 ---
@@ -125,34 +125,29 @@ Strategy:
 
 ### By Index
 
-Tables are 0-indexed in document order:
+Tables are 0-indexed in document order. Use `edit fill-table`, which reads a
+CSV file:
 
 ```bash
-dotnet run ... edit input.docx --table-index 0 --table-data data.json --output updated.docx
+dotnet run ... edit fill-table --input input.docx --output updated.docx --csv rows.csv --table-index 0
 ```
+
+`rows.csv` contains data rows only (no header row); each line is one row:
+
+```csv
+Alice Johnson,$5,000,2026-03-15
+Bob Smith,$3,200,2026-03-18
+```
+
+- Existing data rows are replaced by default (the header row is kept)
+- `--append` adds the rows after the existing data rows
+- Fields may be quoted; a doubled quote escapes a quote inside a quoted field
 
 ### By Header Matching
 
-Find a table by its header row content:
-
-```bash
-dotnet run ... edit input.docx --table-match "Name,Amount,Date" --table-data data.json
-```
-
-### Table Data JSON Format
-
-```json
-{
-  "rows": [
-    ["Alice Johnson", "$5,000", "2026-03-15"],
-    ["Bob Smith", "$3,200", "2026-03-18"]
-  ],
-  "appendRows": true
-}
-```
-
-- `appendRows: true` — add rows after existing data
-- `appendRows: false` (default) — replace all data rows (keeps header row)
+Header-based selection is not implemented in the CLI. Use `analyze` to find the
+table's position and dimensions, then pass `--table-index`; for content-dependent
+selection, edit the table directly with the OpenXML SDK.
 
 ### Direct XML Table Editing
 

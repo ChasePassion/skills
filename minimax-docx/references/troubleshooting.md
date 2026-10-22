@@ -74,13 +74,13 @@ Common violations:
 
 ```bash
 # Validate to find ordering issues
-$CLI validate --input doc.docx --xsd assets/xsd/wml-subset.xsd
+$CLI validate --input doc.docx --openxml
 
-# Auto-fix element ordering
+# Auto-fix element ordering (document, styles, headers, footers)
 $CLI fix-order --input doc.docx
 
 # Re-validate
-$CLI validate --input doc.docx --xsd assets/xsd/wml-subset.xsd
+$CLI validate --input doc.docx --openxml
 ```
 
 **Fix:**
@@ -90,10 +90,10 @@ $CLI fix-order --input doc.docx
 
 If auto-fix doesn't resolve it, unpack and inspect manually:
 ```bash
-$CLI unpack --input doc.docx --output unpacked/
+unzip -o doc.docx -d unpacked/
 # Check word/document.xml for ordering issues
 # Fix, then repack:
-$CLI pack --input unpacked/ --output fixed.docx
+cd unpacked && zip -r ../fixed.docx . && cd ..
 ```
 
 **Prevention:** Read `references/openxml_element_order.md` before writing any XML manipulation code. Always append properties elements first, then content elements.
@@ -185,10 +185,10 @@ elements = list(body)  # all direct children
 
 ```bash
 # Check relationships
-$CLI analyze --input output.docx --part rels | grep -i "image"
+unzip -p output.docx word/_rels/document.xml.rels | grep -i image
 
 # Check if media files exist
-$CLI unpack --input output.docx --output unpacked/
+unzip -o output.docx -d unpacked/
 ls unpacked/word/media/
 ```
 
@@ -498,9 +498,9 @@ When a document has multiple problems, fix them in this priority order:
 
 ```bash
 # Full recovery pipeline
-$CLI unpack --input broken.docx --output unpacked/
-$CLI validate --input broken.docx --xsd assets/xsd/wml-subset.xsd  # find all errors
-$CLI fix-order --input broken.docx                                   # fix element ordering
-$CLI validate --input broken.docx --business                         # check business rules
-scripts/docx_preview.sh broken.docx                                  # visual check
+unzip -o broken.docx -d unpacked/
+$CLI validate --input broken.docx --openxml                        # find all structural errors
+$CLI fix-order --input broken.docx                                  # fix element ordering
+$CLI validate --input broken.docx --business                        # check business rules
+scripts/docx_preview.sh broken.docx                                 # visual check
 ```

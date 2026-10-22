@@ -898,9 +898,9 @@ public static partial class AestheticRecipeSamples
                     ),
                     new Run(
                         new RunProperties(
+                            new RunFonts { Ascii = "Helvetica Neue", HighAnsi = "Helvetica Neue" },
                             new Bold(),
-                            new Color { Val = "FFFFFF" },     // White text on dark header
-                            new RunFonts { Ascii = "Helvetica Neue", HighAnsi = "Helvetica Neue" }
+                            new Color { Val = "FFFFFF" }     // White text on dark header
                         ),
                         new Text(h)
                     )
@@ -1558,6 +1558,38 @@ public static partial class AestheticRecipeSamples
     /// All heading styles are based on "Normal" (not chained H2→H1)
     /// because each heading level has completely different formatting.
     /// </summary>
+    // CT_RPr requires rFonts, b, i and the other toggle properties before
+    // color/sz/szCs. Building a StyleRunProperties by appending toggles after
+    // the size elements would otherwise produce schema-invalid documents.
+    private static readonly string[] RunPropertyOrder =
+    [
+        "rStyle", "rFonts", "b", "bCs", "i", "iCs", "caps", "smallCaps", "strike",
+        "dstrike", "outline", "shadow", "emboss", "imprint", "noProof", "snapToGrid",
+        "vanish", "webHidden", "color", "spacing", "w", "kern", "position", "sz",
+        "szCs", "highlight", "u", "effect", "bdr", "shd", "fitText", "vertAlign",
+        "rtl", "cs", "em", "lang", "eastAsianLayout", "specVanish", "oMath"
+    ];
+
+    private static void NormalizeRunPropertyOrder(OpenXmlElement runProperties)
+    {
+        var children = runProperties.ChildElements.ToList();
+        if (children.Count <= 1) return;
+
+        var ordered = children
+            .OrderBy(e =>
+            {
+                var index = Array.IndexOf(RunPropertyOrder, e.LocalName);
+                return index < 0 ? RunPropertyOrder.Length : index;
+            })
+            .ToList();
+
+        if (children.SequenceEqual(ordered)) return;
+
+        runProperties.RemoveAllChildren();
+        foreach (var child in ordered)
+            runProperties.Append(child);
+    }
+
     private static Style CreateHeadingStyle(
         int level,
         string fontAscii,
@@ -1584,6 +1616,8 @@ public static partial class AestheticRecipeSamples
 
         if (bold)
             rPr.Append(new Bold());
+
+        NormalizeRunPropertyOrder(rPr);
 
         var style = new Style(
             new StyleName { Val = $"heading {level}" },
@@ -1644,6 +1678,8 @@ public static partial class AestheticRecipeSamples
         if (italic)
             rPr.Append(new Italic());
 
+        NormalizeRunPropertyOrder(rPr);
+
         var pPr = new StyleParagraphProperties(
             new KeepNext(),
             new KeepLines(),
@@ -1697,6 +1733,8 @@ public static partial class AestheticRecipeSamples
 
         if (italic)
             rPr.Append(new Italic());
+
+        NormalizeRunPropertyOrder(rPr);
 
         return new Style(
             new StyleName { Val = "caption" },
