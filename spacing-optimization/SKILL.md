@@ -49,6 +49,7 @@ description: "Audit and normalize UI spacing — padding, margins, gaps, icon sl
 - 嵌套 hover 的间距按内层状态形状算，不按内层 icon 算：
   `状态间隙 = 外层 padding − 外层状态内缩 − 内层状态外扩`。
   状态间隙最低 4px；两个圆角按 `内层半径 = 外层半径 − 状态间隙` 推导。
+  例：padding 8、外层状态内缩 4、内层状态外扩 0 → 间隙 4；外层状态内缩改成 8 → 间隙 0，padding 必须加到 12。
 - 内层 hover 和外层 hover 同色时不要叠加：用 `:has()` 抑制外层填充，或内层只改 ink。
 - hover 边界 = 点击边界。只有标题能点时，不要亮整张卡片。
 
